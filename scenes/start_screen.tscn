@@ -1,6 +1,29 @@
-[gd_scene format=3 uid="uid://cw3pf5ddicw66"]
+[gd_scene load_steps=4 format=3 uid="uid://cw3pf5ddicw66"]
+
+[ext_resource type="Script" path="res://scenes/start_screen.gd" id="1_ed7gh"]
+
+[sub_resource type="Animation" id="Animation_xfjfn"]
+resource_name = "fade_to_black"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ScreenCover:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(0, 0, 0, 0), Color(0, 0, 0, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_xvcb6"]
+_data = {
+"fade_to_black": SubResource("Animation_xfjfn")
+}
 
 [node name="StartScreen" type="CanvasLayer"]
+script = ExtResource("1_ed7gh")
 
 [node name="Control" type="Control" parent="."]
 layout_mode = 3
@@ -62,3 +85,19 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 text = "Start"
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_xvcb6")
+}
+
+[node name="ScreenCover" type="ColorRect" parent="."]
+modulate = Color(0, 0, 0, 1)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[connection signal="pressed" from="Control3/Button" to="." method="_on_button_pressed"]

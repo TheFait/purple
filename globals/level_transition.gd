@@ -1,0 +1,13 @@
+extends CanvasLayer
+
+func _ready():
+	$ColorRect.modulate = Color("00000000")
+
+func change_scene(target: String) -> void:
+	#$AnimationPlayer.play("fade_to_black")
+	
+	# wait for some event to finish first
+	#await $AnimationPlayer.animation_finished
+	
+	get_tree().change_scene_to_file(target)	
+	$AnimationPlayer.play_backwards("fade_to_black")
