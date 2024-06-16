@@ -1,0 +1,418 @@
+[
+  {
+	"nice_name": "2 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_2.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 2,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "3 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_3.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 3,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "4 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_4.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 4,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "5 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_5.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 5,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "6 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_6.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 6,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "7 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_7.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 7,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "8 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_8.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 8,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "9 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_9.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 9,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "10 of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_10.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 10,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "Jack of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_11.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 11,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "Queen of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_12.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 12,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "King of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_13.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 13,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "Ace of Hearts",
+	"texture_path": "res://assets/images/cards/black/hearts_14.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 14,
+	"suit": "HEARTS"
+  },
+  {
+	"nice_name": "2 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_2.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 2,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "3 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_3.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 3,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "4 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_4.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 4,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "5 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_5.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 5,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "6 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_6.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 6,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "7 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_7.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 7,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "8 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_8.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 8,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "9 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_9.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 9,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "10 of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_10.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 10,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "Jack of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_11.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 11,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "Queen of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_12.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 12,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "King of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_13.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 13,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "Ace of Diamonds",
+	"texture_path": "res://assets/images/cards/black/diamonds_14.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 14,
+	"suit": "DIAMONDS"
+  },
+  {
+	"nice_name": "2 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_2.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 2,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "3 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_3.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 3,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "4 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_4.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 4,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "5 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_5.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 5,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "6 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_6.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 6,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "7 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_7.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 7,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "8 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_8.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 8,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "9 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_9.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 9,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "10 of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_10.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 10,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "Jack of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_11.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 11,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "Queen of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_12.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 12,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "King of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_13.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 13,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "Ace of Clubs",
+	"texture_path": "res://assets/images/cards/black/clubs_14.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 14,
+	"suit": "CLUBS"
+  },
+  {
+	"nice_name": "2 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_2.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 2,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "3 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_3.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 3,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "4 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_4.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 4,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "5 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_5.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 5,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "6 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_6.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 6,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "7 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_7.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 7,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "8 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_8.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 8,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "9 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_9.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 9,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "10 of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_10.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 10,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "Jack of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_11.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 11,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "Queen of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_12.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 12,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "King of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_13.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 13,
+	"suit": "SPADES"
+  },
+  {
+	"nice_name": "Ace of Spades",
+	"texture_path": "res://assets/images/cards/black/spades_14.png",
+	"backface_texture_path": "res://assets/images/cards/card_backs/traditional_ai.png",
+	"resource_script_path": "res://example/example__card_data.gd",
+	"rank": 14,
+	"suit": "SPADES"
+  }
+]

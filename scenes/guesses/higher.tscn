@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3 uid="uid://d173yuhuwvdfp"]
+
+[ext_resource type="PackedScene" uid="uid://ie0ti4lcemfi" path="res://scenes/guess.tscn" id="1_vm87t"]
+[ext_resource type="Script" path="res://scenes/guesses/higher.gd" id="2_belj7"]
+
+[node name="Higher" instance=ExtResource("1_vm87t")]
+text = "Higher"
+script = ExtResource("2_belj7")

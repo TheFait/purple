@@ -1,12 +1,35 @@
-[gd_scene load_steps=3 format=3 uid="uid://bo1rw1i6h1s0j"]
+[gd_scene load_steps=13 format=3 uid="uid://bo1rw1i6h1s0j"]
 
+[ext_resource type="Script" path="res://scenes/game.gd" id="1_at45b"]
 [ext_resource type="Texture2D" uid="uid://d1nxw2sgaliv1" path="res://assets/images/background.jpg" id="1_idh3y"]
 [ext_resource type="PackedScene" uid="uid://btnhr7dywcjjv" path="res://scenes/ui.tscn" id="2_5i0kd"]
+[ext_resource type="PackedScene" uid="uid://bb43ilf3pc470" path="res://scenes/guesses/red.tscn" id="2_fq0ur"]
+[ext_resource type="PackedScene" uid="uid://cbksh7vvftwm8" path="res://scenes/guesses/black.tscn" id="3_vajct"]
+[ext_resource type="PackedScene" uid="uid://hrdl23lmkp2r" path="res://scenes/guesses/purple.tscn" id="4_mteqt"]
+[ext_resource type="PackedScene" uid="uid://d173yuhuwvdfp" path="res://scenes/guesses/higher.tscn" id="5_86pmp"]
+[ext_resource type="PackedScene" uid="uid://bcnc1fde1fpbg" path="res://scenes/guesses/lower.tscn" id="6_1w6tv"]
+[ext_resource type="PackedScene" uid="uid://64rfp2x8o7ne" path="res://scenes/guesses/inside.tscn" id="7_omli4"]
+[ext_resource type="PackedScene" uid="uid://cotnn71v6n5jt" path="res://scenes/guesses/outside.tscn" id="8_yj74i"]
+
+[sub_resource type="Animation" id="Animation_wadpr"]
+resource_name = "deck_start"
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_ckqei"]
+_data = {
+"deck_start": SubResource("Animation_wadpr")
+}
 
 [node name="Game" type="Node2D"]
+script = ExtResource("1_at45b")
+guesses = Array[PackedScene]([ExtResource("2_fq0ur"), ExtResource("3_vajct"), ExtResource("4_mteqt"), ExtResource("5_86pmp"), ExtResource("6_1w6tv"), ExtResource("7_omli4"), ExtResource("8_yj74i")])
 
 [node name="Background" type="Sprite2D" parent="."]
 position = Vector2(361, 640)
 texture = ExtResource("1_idh3y")
 
 [node name="UI" parent="." instance=ExtResource("2_5i0kd")]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_ckqei")
+}

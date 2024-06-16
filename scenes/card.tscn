@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3 uid="uid://dvrt6eyfcvv7v"]
+
+[ext_resource type="Script" path="res://scenes/card.gd" id="1_nmtsc"]
+
+[node name="Card" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+size_flags_vertical = 3
+script = ExtResource("1_nmtsc")
+
+[node name="FrontFace" type="TextureRect" parent="."]
+layout_mode = 0
+offset_bottom = 316.0
+expand_mode = 3
+
+[node name="BackFace" type="TextureRect" parent="."]
+layout_mode = 0
+offset_bottom = 316.0
+expand_mode = 3

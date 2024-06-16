@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3 uid="uid://cotnn71v6n5jt"]
+
+[ext_resource type="PackedScene" uid="uid://ie0ti4lcemfi" path="res://scenes/guess.tscn" id="1_20aqf"]
+[ext_resource type="Script" path="res://scenes/guesses/outside.gd" id="2_udsxo"]
+
+[node name="Outside" instance=ExtResource("1_20aqf")]
+text = "Outside"
+script = ExtResource("2_udsxo")

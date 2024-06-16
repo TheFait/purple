@@ -1,0 +1,91 @@
+[gd_scene load_steps=4 format=3 uid="uid://btnhr7dywcjjv"]
+
+[ext_resource type="Script" path="res://scenes/ui.gd" id="1_un3qf"]
+[ext_resource type="PackedScene" uid="uid://bg41pc6ei5pdv" path="res://scenes/deck.tscn" id="2_oq7px"]
+[ext_resource type="PackedScene" uid="uid://dvrt6eyfcvv7v" path="res://scenes/card.tscn" id="3_w8pqp"]
+
+[node name="UI" type="CanvasLayer"]
+script = ExtResource("1_un3qf")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+anchors_preset = -1
+anchor_left = 0.4
+anchor_top = 0.05
+anchor_right = 0.6
+anchor_bottom = 0.05
+grow_horizontal = 2
+
+[node name="Label" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "It's that purp"
+
+[node name="DeckLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Cards in Deck"
+
+[node name="StackLabel" type="Label" parent="."]
+anchors_preset = -1
+anchor_left = 0.2
+anchor_top = 0.1
+anchor_right = 0.2
+anchor_bottom = 0.1
+grow_horizontal = 2
+text = "Stack"
+
+[node name="ButtonContainer" type="HBoxContainer" parent="."]
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.95
+anchor_right = 0.5
+anchor_bottom = 0.96
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 15
+
+[node name="Button" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Continue"
+
+[node name="DrawCard" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Draw Card"
+
+[node name="DrawToStack" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Draw to Stack"
+
+[node name="ClearStack" type="Button" parent="ButtonContainer"]
+layout_mode = 2
+text = "Clear Stack"
+
+[node name="GuessContainer" type="VBoxContainer" parent="."]
+anchors_preset = -1
+anchor_left = 0.2
+anchor_top = 0.35
+anchor_right = 0.8
+anchor_bottom = 0.75
+
+[node name="GuessLabel" type="Label" parent="GuessContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Guesses"
+
+[node name="Stack" type="HBoxContainer" parent="."]
+anchors_preset = -1
+anchor_top = 0.15
+anchor_right = 1.0
+anchor_bottom = 0.3
+theme_override_constants/separation = 25
+
+[node name="Deck" parent="." instance=ExtResource("2_oq7px")]
+mouse_filter = 2
+json_card_database_path = "res://assets/database/card_database.json"
+json_card_collection_path = "res://assets/database/card_collection.json"
+card_object = ExtResource("3_w8pqp")
+
+[connection signal="pressed" from="ButtonContainer/Button" to="." method="_on_button_pressed"]
+[connection signal="pressed" from="ButtonContainer/DrawCard" to="." method="_on_draw_card_pressed"]
+[connection signal="pressed" from="ButtonContainer/DrawToStack" to="." method="_on_draw_to_stack_pressed"]
+[connection signal="pressed" from="ButtonContainer/ClearStack" to="." method="_on_clear_stack_pressed"]

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://ie0ti4lcemfi"]
+
+[ext_resource type="Script" path="res://scenes/guess.gd" id="1_cmxhj"]
+
+[node name="Guess" type="Button"]
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Guess"
+script = ExtResource("1_cmxhj")
+
+[connection signal="pressed" from="." to="." method="_on_pressed"]

@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://bg41pc6ei5pdv"]
+
+[ext_resource type="Script" path="res://scenes/Deck.gd" id="1_p6pds"]
+
+[node name="Deck" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_p6pds")
+json_card_database_path = "res://assets/database/card_database.json"
+json_card_collection_path = "res://assets/database/card_collection.json"

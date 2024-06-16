@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3 uid="uid://cbksh7vvftwm8"]
+
+[ext_resource type="PackedScene" uid="uid://ie0ti4lcemfi" path="res://scenes/guess.tscn" id="1_qs7qe"]
+[ext_resource type="Script" path="res://scenes/guesses/black.gd" id="2_atv2t"]
+
+[node name="Black" instance=ExtResource("1_qs7qe")]
+text = "Black"
+script = ExtResource("2_atv2t")

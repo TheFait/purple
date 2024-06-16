@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3 uid="uid://64rfp2x8o7ne"]
+
+[ext_resource type="PackedScene" uid="uid://ie0ti4lcemfi" path="res://scenes/guess.tscn" id="1_3skmc"]
+[ext_resource type="Script" path="res://scenes/guesses/inside.gd" id="2_ubpso"]
+
+[node name="Inside" instance=ExtResource("1_3skmc")]
+text = "Inside"
+script = ExtResource("2_ubpso")

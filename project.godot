@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 LevelTransition="*res://globals/level_transition.tscn"
+Globals="*res://globals/globals.gd"
 
 [display]
 
@@ -29,6 +30,10 @@ window/handheld/orientation=1
 [dotnet]
 
 project/assembly_name="Purple"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/Todo_Manager/plugin.cfg")
 
 [rendering]
 
