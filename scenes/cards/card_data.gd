@@ -25,15 +25,8 @@ func is_black() -> bool:
 func to_dict() -> Dictionary:
 	return {"rank": rank, "suit": suit, "nice_name": nice_name, "texture_path": texture_path, "backface_path": backface_path}
 
-static func from_dict(d: Dictionary):
-	var script = load("res://scenes/cards/card_data.gd")
-	var card = script.new()
-	card.rank = int(d.get("rank", 0))
-	card.suit = int(d.get("suit", 0))
-	card.nice_name = String(d.get("nice_name", ""))
-	card.texture_path = String(d.get("texture_path", ""))
-	card.backface_path = String(d.get("backface_path", ""))
-	return card
+static func from_dict(d: Dictionary) -> CardData:
+	return CardData.new(int(d.get("rank", 0)), int(d.get("suit", 0)), String(d.get("nice_name", "")), String(d.get("texture_path", "")), String(d.get("backface_path", "")))
 
 func _to_string() -> String:
 	return nice_name
