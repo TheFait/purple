@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 LevelTransition="*res://globals/level_transition.tscn"
 Globals="*res://globals/globals.gd"
+Net="*res://scenes/net/net.gd"
 
 [display]
 

@@ -15,87 +15,139 @@ colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 0)
 
 [node name="UI" type="CanvasLayer"]
 script = ExtResource("1_un3qf")
-metadata/_edit_horizontal_guides_ = [512.0]
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="InfoPanel" type="VBoxContainer" parent="."]
 anchors_preset = -1
-anchor_left = 0.4
-anchor_top = 0.05
-anchor_right = 0.6
-anchor_bottom = 0.05
+anchor_left = 0.1
+anchor_top = 0.03
+anchor_right = 0.9
+anchor_bottom = 0.03
 grow_horizontal = 2
+theme_override_constants/separation = 2
 
-[node name="Label" type="Label" parent="VBoxContainer"]
+[node name="TitleLabel" type="Label" parent="InfoPanel"]
 layout_mode = 2
-size_flags_horizontal = 4
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 26
+text = "Purple & Post"
+
+[node name="StreakLabel" type="Label" parent="InfoPanel"]
+layout_mode = 2
+horizontal_alignment = 1
 theme_override_font_sizes/font_size = 20
-text = "It's that purp"
+text = "Streak: 0"
 
-[node name="DeckLabel" type="Label" parent="VBoxContainer"]
+[node name="DrinkPoolLabel" type="Label" parent="InfoPanel"]
 layout_mode = 2
-size_flags_horizontal = 4
+horizontal_alignment = 1
 theme_override_font_sizes/font_size = 20
-text = "Cards in Deck"
+text = "Drink Pool: 0"
 
-[node name="StackLabel" type="Label" parent="."]
-anchors_preset = -1
-anchor_left = 0.2
-anchor_top = 0.1
-anchor_right = 0.2
-anchor_bottom = 0.1
-grow_horizontal = 2
-theme_override_font_sizes/font_size = 20
-text = "Stack"
-
-[node name="ButtonContainer" type="HBoxContainer" parent="."]
-anchors_preset = -1
-anchor_left = 0.5
-anchor_top = 0.95
-anchor_right = 0.5
-anchor_bottom = 0.96
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 15
-
-[node name="Button" type="Button" parent="ButtonContainer"]
+[node name="DeckLabel" type="Label" parent="InfoPanel"]
 layout_mode = 2
-text = "Continue"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 15
+text = "Deck Size: 0"
 
-[node name="DrawCard" type="Button" parent="ButtonContainer"]
+[node name="StackLabel" type="Label" parent="InfoPanel"]
 layout_mode = 2
-text = "Draw Card"
-
-[node name="DrawToStack" type="Button" parent="ButtonContainer"]
-layout_mode = 2
-text = "Draw to Stack"
-
-[node name="ClearStack" type="Button" parent="ButtonContainer"]
-layout_mode = 2
-text = "Clear Stack"
-
-[node name="GuessWrapper" type="VBoxContainer" parent="."]
-anchors_preset = -1
-anchor_left = 0.2
-anchor_top = 0.45
-anchor_right = 0.8
-anchor_bottom = 0.85
-
-[node name="GuessLabel" type="Label" parent="GuessWrapper"]
-layout_mode = 2
-size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 20
-text = "Guesses"
-
-[node name="GuessContainer" type="VBoxContainer" parent="GuessWrapper"]
-layout_mode = 2
-size_flags_vertical = 3
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 15
+text = "Stack Size: 0"
 
 [node name="Stack" type="HBoxContainer" parent="."]
 anchors_preset = -1
-anchor_top = 0.15
+anchor_top = 0.2
 anchor_right = 1.0
-anchor_bottom = 0.4
+anchor_bottom = 0.45
+alignment = 1
 theme_override_constants/separation = 35
+
+[node name="TurnLogLabel" type="Label" parent="."]
+anchors_preset = -1
+anchor_left = 0.05
+anchor_top = 0.5
+anchor_right = 0.95
+anchor_bottom = 0.5
+grow_horizontal = 2
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Player 0's turn"
+
+[node name="PassButtons" type="HBoxContainer" parent="."]
+visible = false
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.62
+anchor_right = 0.5
+anchor_bottom = 0.62
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="PassButton" type="Button" parent="PassButtons"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Pass (bank it)"
+
+[node name="RideButton" type="Button" parent="PassButtons"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Ride (push pool)"
+
+[node name="ActionButtons" type="GridContainer" parent="."]
+anchors_preset = -1
+anchor_left = 0.08
+anchor_top = 0.72
+anchor_right = 0.92
+anchor_bottom = 0.96
+grow_horizontal = 2
+columns = 3
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+
+[node name="HigherButton" type="Button" parent="ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 22
+text = "Higher"
+
+[node name="LowerButton" type="Button" parent="ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 22
+text = "Lower"
+
+[node name="PostButton" type="Button" parent="ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 22
+text = "Post"
+
+[node name="RedButton" type="Button" parent="ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 22
+text = "Red"
+
+[node name="BlackButton" type="Button" parent="ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 22
+text = "Black"
+
+[node name="PurpleButton" type="Button" parent="ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 22
+text = "Purple"
 
 [node name="Deck" parent="." instance=ExtResource("2_oq7px")]
 mouse_filter = 2
@@ -120,6 +172,7 @@ grow_vertical = 2
 [node name="WinParticles" type="CPUParticles2D" parent="ParticleHolder"]
 emitting = false
 amount = 50
+one_shot = true
 lifetime = 2.0
 lifetime_randomness = 0.25
 texture = ExtResource("4_7o5yl")
@@ -133,8 +186,3 @@ scale_amount_min = 0.01
 scale_amount_max = 0.05
 scale_amount_curve = SubResource("Curve_grf42")
 color_ramp = SubResource("Gradient_ojd70")
-
-[connection signal="pressed" from="ButtonContainer/Button" to="." method="_on_button_pressed"]
-[connection signal="pressed" from="ButtonContainer/DrawCard" to="." method="_on_draw_card_pressed"]
-[connection signal="pressed" from="ButtonContainer/DrawToStack" to="." method="_on_draw_to_stack_pressed"]
-[connection signal="pressed" from="ButtonContainer/ClearStack" to="." method="_on_clear_stack_pressed"]
