@@ -5,8 +5,6 @@ enum TURN_PHASE {GAME_START, TURN_START, GUESS, REVEAL, RESULT}
 signal change_phase()
 signal update_ui()
 
-var current_guess:Guess
-
 var cards_in_deck: int:
 	set(value):
 		cards_in_deck = value
