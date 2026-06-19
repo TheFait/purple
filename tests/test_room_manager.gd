@@ -26,6 +26,8 @@ func _initialize() -> void:
 	t.check(prv.join_code != "", "private room has a code")
 	t.check(rm.join(2000, prv.join_code, "CodeJoiner") != null, "join by code works")
 	t.eq(prv.seat_of(2000), 0, "first private seat is index 0")
+	# Private room must NOT be joinable by its internal id (security: ids are guessable).
+	t.check(rm.join(2001, prv.id, "ByIdShouldFail") == null, "private room not joinable by id")
 
 	# Public listing shows only public rooms.
 	var listing := rm.list_public()

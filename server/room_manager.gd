@@ -55,7 +55,9 @@ func list_public() -> Array:
 
 func _resolve(room_id_or_code: String) -> Room:
 	if _rooms.has(room_id_or_code):
-		return _rooms[room_id_or_code]
+		var candidate: Room = _rooms[room_id_or_code]
+		if candidate.is_public:
+			return candidate
 	for room in _rooms.values():
 		if not room.is_public and room.join_code == room_id_or_code:
 			return room
