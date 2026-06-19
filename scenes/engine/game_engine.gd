@@ -176,6 +176,15 @@ func _ensure_cards(needed: int) -> void:
 		table_cards = [keep]
 		round_log.emit("Deck recycled mid-ride to keep play going.")
 
+func reconcile_seats(new_count: int) -> void:
+	## Called when a player disconnects mid-game. Clamps seat_count and
+	## current_seat so turn rotation never lands on a vacated index.
+	seat_count = max(1, new_count)
+	if current_seat >= seat_count:
+		current_seat = current_seat % seat_count
+	turn_changed.emit(current_seat)
+	round_log.emit("Player left — seat count now %d, seat %d's turn." % [seat_count, current_seat])
+
 func _advance_seat() -> void:
 	current_seat = (current_seat + 1) % seat_count
 	turn_changed.emit(current_seat)

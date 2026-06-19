@@ -117,28 +117,37 @@ func _ensure_engine(room: Room) -> void:
 	add_child(engine)
 	room.set_meta("engine", engine)
 	# Fan out every engine event to all peers in THIS room.
-	engine.card_revealed.connect(func(card: CardData): _broadcast(room, "_client_card_revealed", card.to_dict()))
-	engine.table_cleared.connect(func(): _broadcast(room, "_client_table_cleared"))
-	engine.streak_changed.connect(func(s: int): _broadcast(room, "_client_streak", s))
-	engine.pool_changed.connect(func(p: int): _broadcast(room, "_client_pool", p))
-	engine.penalty_triggered.connect(func(s: int, amt: int): _broadcast(room, "_client_penalty", s, amt))
-	engine.pass_available.connect(func(on: bool): _broadcast(room, "_client_pass_available", on))
-	engine.turn_changed.connect(func(s: int): _broadcast(room, "_client_turn", s))
-	engine.round_log.connect(func(txt: String): _broadcast(room, "_client_log", txt))
+	engine.card_revealed.connect(func(card: CardData): _broadcast(room, "_client_card_revealed", [card.to_dict()]))
+	engine.table_cleared.connect(func(): _broadcast(room, "_client_table_cleared", []))
+	engine.streak_changed.connect(func(s: int): _broadcast(room, "_client_streak", [s]))
+	engine.pool_changed.connect(func(p: int): _broadcast(room, "_client_pool", [p]))
+	engine.penalty_triggered.connect(func(s: int, amt: int): _broadcast(room, "_client_penalty", [s, amt]))
+	engine.pass_available.connect(func(on: bool): _broadcast(room, "_client_pass_available", [on]))
+	engine.turn_changed.connect(func(s: int): _broadcast(room, "_client_turn", [s]))
+	engine.round_log.connect(func(txt: String): _broadcast(room, "_client_log", [txt]))
 	engine.setup(deck, max(1, room.player_count()))
 
-func _broadcast(room: Room, method: String, a: Variant = null, b: Variant = null) -> void:
+func _broadcast(room: Room, method: String, args: Array = []) -> void:
 	for pid: int in room.peer_ids():
-		if a == null:
-			rpc_id(pid, method)
-		elif b == null:
-			rpc_id(pid, method, a)
-		else:
-			rpc_id(pid, method, a, b)
+		callv("rpc_id", [pid, method] + args)
 
 func _on_peer_disconnected(peer_id: int) -> void:
-	if _rooms != null:
-		_rooms.leave(peer_id)
+	if _rooms == null:
+		return
+	var room: Room = _rooms.leave(peer_id)
+	# room is null when it was already empty and freed, or peer was unknown.
+	# When still occupied and has a running engine, reconcile seat count and
+	# turn so the engine never references a vacated seat index.
+	if room == null or room.player_count() == 0:
+		return
+	if not room.has_meta("engine"):
+		return
+	var engine: GameEngine = room.get_meta("engine")
+	engine.reconcile_seats(room.player_count())
+	# Re-broadcast each remaining peer's seat so cached _my_seat stays valid
+	# after remove_seat re-packed the indices.
+	for pid: int in room.peer_ids():
+		rpc_id(pid, "_client_seated", room.seat_of(pid), room.room_name)
 
 # ---- server game RPCs (move/pass/ride) ----
 

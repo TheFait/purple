@@ -29,12 +29,28 @@ dedicated server.
 
 Connecting the GUI client to the server is the **first task of Iteration 2**.
 
+## Mid-game disconnect (implemented)
+
+When a player disconnects mid-game, the server now reconciles the room automatically:
+
+- `Net._on_peer_disconnected` calls `GameEngine.reconcile_seats(new_count)`, which
+  clamps `seat_count` and `current_seat` so the turn rotation never lands on a vacated
+  seat index — preventing the room from deadlocking.
+- Each remaining peer receives a fresh `_client_seated` RPC so their cached `_my_seat`
+  reflects the re-packed indices after the leaver's slot is removed.
+
+**Not yet implemented (Iteration 2):** full reconnection flow, late-joiner state sync
+(deck position, streak, pool), and the `_awaiting_pass` edge case when the active player
+disconnects mid pass/ride decision.
+
 ## What is Iteration 2?
 
 - Wire `scenes/game.tscn` as an online client (replace `GameManager` binding with `Net` binding).
 - Public-room browser UI and private-room code-entry UI.
 - Remote hosting / non-localhost server addresses.
 - Late-joiner full state-sync (deck position, streak, pool).
+- Full reconnection support.
+- Handle `_awaiting_pass` edge case when active player disconnects.
 
 ## Notes
 
