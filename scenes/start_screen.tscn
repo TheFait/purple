@@ -1,6 +1,14 @@
-[gd_scene load_steps=4 format=3 uid="uid://cw3pf5ddicw66"]
+[gd_scene load_steps=6 format=3 uid="uid://cw3pf5ddicw66"]
 
 [ext_resource type="Script" path="res://scenes/start_screen.gd" id="1_ed7gh"]
+[ext_resource type="Shader" path="res://assets/shaders/vapor_bg.gdshader" id="2_vapor"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vapor"]
+shader = ExtResource("2_vapor")
+shader_parameter/aspect = 0.5625
+shader_parameter/horizon = 0.6
+shader_parameter/scroll_speed = 0.35
+shader_parameter/pulse = 0.0
 
 [sub_resource type="Animation" id="Animation_xfjfn"]
 resource_name = "fade_to_black"
@@ -25,43 +33,32 @@ _data = {
 [node name="StartScreen" type="CanvasLayer"]
 script = ExtResource("1_ed7gh")
 
-[node name="Control" type="Control" parent="."]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="Background" type="CanvasLayer" parent="."]
+layer = -1
 
-[node name="ColorRect" type="ColorRect" parent="Control"]
-layout_mode = 1
+[node name="Backdrop" type="ColorRect" parent="Background"]
+material = SubResource("ShaderMaterial_vapor")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.376471, 0, 0.458824, 1)
+mouse_filter = 2
 
 [node name="Control2" type="Control" parent="."]
 layout_mode = 3
-anchor_top = 0.169531
+anchor_top = 0.06
 anchor_right = 1.0
-anchor_bottom = 0.263281
+anchor_bottom = 0.16
 grow_horizontal = 2
 grow_vertical = 2
 metadata/_edit_use_anchors_ = true
 
 [node name="Label" type="Label" parent="Control2"]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -25.5
-offset_top = -11.5
-offset_right = 25.5
-offset_bottom = 11.5
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 text = "Purple"
@@ -70,10 +67,10 @@ vertical_alignment = 1
 
 [node name="Control3" type="Control" parent="."]
 layout_mode = 3
-anchor_left = 0.4
-anchor_top = 0.7
-anchor_right = 0.6
-anchor_bottom = 0.75
+anchor_left = 0.2
+anchor_top = 0.8
+anchor_right = 0.8
+anchor_bottom = 0.88
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -84,7 +81,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-text = "Start"
+text = "START"
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
