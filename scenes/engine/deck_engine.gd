@@ -23,6 +23,13 @@ func load_from_json(database_path: String, collection_path: String) -> void:
 			String(info.get("backface_texture_path", ""))))
 	shuffle()
 
+func load_cards(cards: Array) -> void:
+	## Unshuffled deck for tests; draw() pops from the back, so the last card is drawn first.
+	_deck.clear()
+	_discard.clear()
+	for c in cards:
+		_deck.append(c)
+
 func shuffle() -> void:
 	_deck.shuffle()
 
