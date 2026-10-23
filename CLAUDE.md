@@ -1,5 +1,3 @@
-@AGENTS.md
-
 # Purple & Post
 
 Godot 4.6 (GDScript, Mobile renderer, portrait 720x1280) drinking-card game for a table of players. The stack starts empty. Each turn the active player guesses what the next flip will be; correct guesses join the stack, a wrong guess means they drink every card in it (the wrong flip included) and guess again on an empty stack. Once a player has contributed 3 or more cards they may pass, and the next player inherits the stack.
