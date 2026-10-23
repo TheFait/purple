@@ -1,188 +1,189 @@
-[gd_scene load_steps=7 format=3 uid="uid://btnhr7dywcjjv"]
+[gd_scene format=3 uid="uid://btnhr7dywcjjv"]
 
-[ext_resource type="Script" path="res://scenes/ui.gd" id="1_un3qf"]
-[ext_resource type="PackedScene" uid="uid://bg41pc6ei5pdv" path="res://scenes/deck.tscn" id="2_oq7px"]
-[ext_resource type="PackedScene" uid="uid://dvrt6eyfcvv7v" path="res://scenes/card.tscn" id="3_w8pqp"]
-[ext_resource type="Texture2D" uid="uid://0sk3ueasistc" path="res://assets/images/cards/white/spades_6.png" id="4_7o5yl"]
+[ext_resource type="Script" uid="uid://cgsf6rdn662s3" path="res://scenes/ui.gd" id="1_un3qf"]
+[ext_resource type="Script" uid="uid://bujue1uo17kct" path="res://scenes/table.gd" id="2_table"]
 
-[sub_resource type="Curve" id="Curve_grf42"]
-_data = [Vector2(0, 0.789226), 0.0, 1.69979, 0, 0, Vector2(0.248649, 1), -0.0679916, -0.0679916, 0, 0, Vector2(1, 0.218096), -3.47404, 0.0, 0, 0]
-point_count = 3
-
-[sub_resource type="Gradient" id="Gradient_ojd70"]
-offsets = PackedFloat32Array(0.692982, 1)
-colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 0)
-
-[node name="UI" type="CanvasLayer"]
+[node name="UI" type="CanvasLayer" unique_id=1748759670]
 script = ExtResource("1_un3qf")
 
-[node name="InfoPanel" type="VBoxContainer" parent="."]
-anchors_preset = -1
-anchor_left = 0.1
-anchor_top = 0.03
-anchor_right = 0.9
-anchor_bottom = 0.03
-grow_horizontal = 2
-theme_override_constants/separation = 2
-
-[node name="TitleLabel" type="Label" parent="InfoPanel"]
-layout_mode = 2
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 26
-text = "Purple & Post"
-
-[node name="StreakLabel" type="Label" parent="InfoPanel"]
-layout_mode = 2
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 20
-text = "Streak: 0"
-
-[node name="DrinkPoolLabel" type="Label" parent="InfoPanel"]
-layout_mode = 2
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 20
-text = "Drink Pool: 0"
-
-[node name="DeckLabel" type="Label" parent="InfoPanel"]
-layout_mode = 2
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 15
-text = "Deck Size: 0"
-
-[node name="StackLabel" type="Label" parent="InfoPanel"]
-layout_mode = 2
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 15
-text = "Stack Size: 0"
-
-[node name="Stack" type="HBoxContainer" parent="."]
-anchors_preset = -1
-anchor_top = 0.2
+[node name="Root" type="Control" parent="." unique_id=1473059991]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
-anchor_bottom = 0.45
-alignment = 1
-theme_override_constants/separation = 35
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
-[node name="TurnLogLabel" type="Label" parent="."]
+[node name="TitleLabel" type="Label" parent="Root" unique_id=2049937522]
+layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.05
-anchor_top = 0.5
+anchor_top = 0.43
 anchor_right = 0.95
-anchor_bottom = 0.5
+anchor_bottom = 0.53
 grow_horizontal = 2
+text = "PURPLE"
 horizontal_alignment = 1
-autowrap_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Player 0's turn"
+vertical_alignment = 1
 
-[node name="PassButtons" type="HBoxContainer" parent="."]
-visible = false
-anchors_preset = -1
-anchor_left = 0.5
-anchor_top = 0.62
-anchor_right = 0.5
-anchor_bottom = 0.62
+[node name="Table" type="Control" parent="Root" unique_id=1535618899]
+layout_mode = 1
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 20
-
-[node name="PassButton" type="Button" parent="PassButtons"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "Pass (bank it)"
-
-[node name="RideButton" type="Button" parent="PassButtons"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "Ride (push pool)"
-
-[node name="ActionButtons" type="GridContainer" parent="."]
-anchors_preset = -1
-anchor_left = 0.08
-anchor_top = 0.72
-anchor_right = 0.92
-anchor_bottom = 0.96
-grow_horizontal = 2
-columns = 3
-theme_override_constants/h_separation = 12
-theme_override_constants/v_separation = 12
-
-[node name="HigherButton" type="Button" parent="ActionButtons"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 22
-text = "Higher"
-
-[node name="LowerButton" type="Button" parent="ActionButtons"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 22
-text = "Lower"
-
-[node name="PostButton" type="Button" parent="ActionButtons"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 22
-text = "Post"
-
-[node name="RedButton" type="Button" parent="ActionButtons"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 22
-text = "Red"
-
-[node name="BlackButton" type="Button" parent="ActionButtons"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 22
-text = "Black"
-
-[node name="PurpleButton" type="Button" parent="ActionButtons"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 22
-text = "Purple"
-
-[node name="Deck" parent="." instance=ExtResource("2_oq7px")]
 mouse_filter = 2
-json_card_database_path = "res://assets/database/card_database.json"
-json_card_collection_path = "res://assets/database/card_collection.json"
-card_object = ExtResource("3_w8pqp")
+script = ExtResource("2_table")
 
-[node name="ParticleHolder" type="Control" parent="."]
-layout_mode = 3
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -20.0
-offset_top = -20.0
-offset_right = 20.0
-offset_bottom = 20.0
+[node name="PlayersRow" type="HBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.05
+anchor_top = 0.008
+anchor_right = 0.95
+anchor_bottom = 0.072
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="StatsColumn" type="VBoxContainer" parent="Root" unique_id=104031133]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.02
+anchor_top = 0.36
+anchor_right = 0.2
+anchor_bottom = 0.53
+theme_override_constants/separation = 12
+
+[node name="StreakPanel" type="PanelContainer" parent="Root/StatsColumn" unique_id=1952639271]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBox" type="VBoxContainer" parent="Root/StatsColumn/StreakPanel" unique_id=1519768114]
+layout_mode = 2
+theme_override_constants/separation = -4
+
+[node name="Caption" type="Label" parent="Root/StatsColumn/StreakPanel/VBox" unique_id=1220034943]
+layout_mode = 2
+text = "STREAK"
+horizontal_alignment = 1
+
+[node name="StreakLabel" type="Label" parent="Root/StatsColumn/StreakPanel/VBox" unique_id=217876507]
+layout_mode = 2
+text = "0"
+horizontal_alignment = 1
+
+[node name="PoolPanel" type="PanelContainer" parent="Root/StatsColumn" unique_id=1747581292]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBox" type="VBoxContainer" parent="Root/StatsColumn/PoolPanel" unique_id=1880109957]
+layout_mode = 2
+theme_override_constants/separation = -4
+
+[node name="Caption" type="Label" parent="Root/StatsColumn/PoolPanel/VBox" unique_id=2072688976]
+layout_mode = 2
+text = "DRINK POOL"
+horizontal_alignment = 1
+
+[node name="PoolLabel" type="Label" parent="Root/StatsColumn/PoolPanel/VBox" unique_id=917206215]
+layout_mode = 2
+text = "0"
+horizontal_alignment = 1
+
+[node name="TurnLogLabel" type="Label" parent="Root" unique_id=149279232]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.05
+anchor_top = 0.948
+anchor_right = 0.95
+anchor_bottom = 0.992
+grow_horizontal = 2
+text = "Ready"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="PassPanel" type="PanelContainer" parent="Root" unique_id=98744848]
+visible = false
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.2
+anchor_top = 0.548
+anchor_right = 0.8
+anchor_bottom = 0.606
+grow_horizontal = 2
+
+[node name="VBox" type="VBoxContainer" parent="Root/PassPanel" unique_id=905686199]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PassButtons" type="HBoxContainer" parent="Root/PassPanel/VBox" unique_id=1735992785]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="PassButton" type="Button" parent="Root/PassPanel/VBox/PassButtons" unique_id=20721980]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "PASS THE STACK"
+
+[node name="GuessLayer" type="Control" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 
-[node name="WinParticles" type="CPUParticles2D" parent="ParticleHolder"]
-emitting = false
-amount = 50
-one_shot = true
-lifetime = 2.0
-lifetime_randomness = 0.25
-texture = ExtResource("4_7o5yl")
-spread = 180.0
-gravity = Vector2(0, 120)
-initial_velocity_min = 200.0
-initial_velocity_max = 350.0
-orbit_velocity_min = 0.1
-orbit_velocity_max = 0.2
-scale_amount_min = 0.01
-scale_amount_max = 0.05
-scale_amount_curve = SubResource("Curve_grf42")
-color_ramp = SubResource("Gradient_ojd70")
+[node name="HigherButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "HIGHER"
+
+[node name="LowerButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "LOWER"
+
+[node name="InsideButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "INSIDE"
+
+[node name="OutsideButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "OUTSIDE"
+
+[node name="RedButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "RED"
+
+[node name="BlackButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "BLACK"
+
+[node name="PurpleButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "PURPLE: 2 CARDS"
+
+[node name="PostButton" type="Button" parent="Root/GuessLayer"]
+layout_mode = 0
+offset_right = 92.0
+offset_bottom = 92.0
+text = "POST: MATCH IT"
