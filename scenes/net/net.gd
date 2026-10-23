@@ -23,6 +23,8 @@ signal pool_changed(pool: int)
 signal penalty_triggered(seat: int, amount: int)
 signal pass_available(is_available: bool)
 signal turn_changed(seat: int)
+signal phantoms_added(cards: Array)
+signal diamonds_forever()
 signal round_log(text: String)
 
 var _rooms: RoomManager      # server only
@@ -30,6 +32,7 @@ var _auto_room: Room         # server only — the iteration-1 default public ro
 
 var _my_seat: int = -1           # client only
 var _current_turn_seat: int = 0  # client only (mirror of server turn)
+var _stack_size: int = 0         # client only (mirror of the server's pool, drives legal_moves)
 
 func start_server(port: int) -> void:
 	var peer := ENetMultiplayerPeer.new()
@@ -124,6 +127,9 @@ func _ensure_engine(room: Room) -> void:
 	engine.penalty_triggered.connect(func(s: int, amt: int): _broadcast(room, "_client_penalty", [s, amt]))
 	engine.pass_available.connect(func(on: bool): _broadcast(room, "_client_pass_available", [on]))
 	engine.turn_changed.connect(func(s: int): _broadcast(room, "_client_turn", [s]))
+	engine.phantoms_added.connect(func(cards: Array):
+		_broadcast(room, "_client_phantoms", [cards.map(func(c: CardData) -> Dictionary: return c.to_dict())]))
+	engine.diamonds_forever.connect(func(): _broadcast(room, "_client_diamonds", []))
 	engine.round_log.connect(func(txt: String): _broadcast(room, "_client_log", [txt]))
 	engine.setup(deck, max(1, room.player_count()))
 
@@ -163,12 +169,6 @@ func rpc_request_pass() -> void:
 		return
 	_route_action(multiplayer.get_remote_sender_id(), "pass", 0)
 
-@rpc("any_peer", "call_remote", "reliable")
-func rpc_request_ride() -> void:
-	if not multiplayer.is_server():
-		return
-	_route_action(multiplayer.get_remote_sender_id(), "ride", 0)
-
 func _route_action(sender: int, kind: String, move: int) -> void:
 	var room: Room = _rooms.room_of(sender)
 	if room == null or not room.has_meta("engine"):
@@ -178,7 +178,6 @@ func _route_action(sender: int, kind: String, move: int) -> void:
 	match kind:
 		"move": engine.submit_move(seat, move)
 		"pass": engine.request_pass(seat)
-		"ride": engine.request_ride(seat)
 
 # ---- server -> client: game events ----
 
@@ -196,7 +195,19 @@ func _client_streak(s: int) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _client_pool(p: int) -> void:
+	_stack_size = p
 	pool_changed.emit(p)
+
+@rpc("authority", "call_remote", "reliable")
+func _client_phantoms(card_dicts: Array) -> void:
+	var cards: Array = []
+	for d: Dictionary in card_dicts:
+		cards.append(CardData.from_dict(d))
+	phantoms_added.emit(cards)
+
+@rpc("authority", "call_remote", "reliable")
+func _client_diamonds() -> void:
+	diamonds_forever.emit()
 
 @rpc("authority", "call_remote", "reliable")
 func _client_penalty(seat: int, amount: int) -> void:
@@ -223,8 +234,13 @@ func act_move(move: int) -> void:
 func act_pass() -> void:
 	rpc_id(1, "rpc_request_pass")
 
-func act_ride() -> void:
-	rpc_id(1, "rpc_request_ride")
+func legal_moves() -> Array[int]:
+	return GAME_ENGINE.legal_moves_for(_stack_size)
+
+## The server does not broadcast the player count yet (Iteration 2), so infer at least
+## the seats this client has seen; the players row grows as higher seats take a turn.
+func seat_count() -> int:
+	return maxi(2, maxi(_my_seat, _current_turn_seat) + 1)
 
 func can_act() -> bool:
 	return _my_seat == _current_turn_seat
