@@ -1,5 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
+[ext_resource type="Script" path="res://scenes/online_game.gd" id="1_game"]
 [ext_resource type="PackedScene" uid="uid://btnhr7dywcjjv" path="res://scenes/ui.tscn" id="2_5i0kd"]
 [ext_resource type="Shader" path="res://assets/shaders/vapor_bg.gdshader" id="3_vapor"]
 
@@ -11,6 +12,7 @@ shader_parameter/scroll_speed = 0.35
 shader_parameter/pulse = 0.0
 
 [node name="OnlineGame" type="Node2D"]
+script = ExtResource("1_game")
 
 [node name="Background" type="CanvasLayer" parent="."]
 layer = -1
