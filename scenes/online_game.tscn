@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" uid="uid://btnhr7dywcjjv" path="res://scenes/ui.tscn" id="2_5i0kd"]
+[ext_resource type="Shader" path="res://assets/shaders/vapor_bg.gdshader" id="3_vapor"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vapor"]
+shader = ExtResource("3_vapor")
+shader_parameter/aspect = 0.5625
+shader_parameter/horizon = 0.6
+shader_parameter/scroll_speed = 0.35
+shader_parameter/pulse = 0.0
+
+[node name="OnlineGame" type="Node2D"]
+
+[node name="Background" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="Backdrop" type="ColorRect" parent="Background"]
+material = SubResource("ShaderMaterial_vapor")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="UI" parent="." instance=ExtResource("2_5i0kd")]

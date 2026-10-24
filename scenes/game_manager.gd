@@ -12,6 +12,10 @@ signal pool_changed(pool: int)
 signal penalty_triggered(seat: int, amount: int)
 signal pass_available(is_available: bool)
 signal turn_changed(seat: int)
+signal seats_changed(count: int, current_seat: int)   # never emitted offline; part of the shared presenter contract
+signal player_left(player_name: String)                       # likewise
+signal stack_passed(from_seat: int, to_seat: int, count: int)
+signal table_restored(cards: Array)   # never emitted offline; part of the shared presenter contract
 signal phantoms_added(cards: Array)
 signal diamonds_forever()
 signal round_log(text: String)
@@ -33,6 +37,7 @@ func _ready() -> void:
 	_engine.turn_changed.connect(func(seat): turn_changed.emit(seat))
 	_engine.phantoms_added.connect(func(cards): phantoms_added.emit(cards))
 	_engine.diamonds_forever.connect(func(): diamonds_forever.emit())
+	_engine.stack_passed.connect(func(f, to, n): stack_passed.emit(f, to, n))
 	_engine.round_log.connect(func(txt): round_log.emit(txt))
 	_engine.setup(deck, 2)
 
@@ -49,6 +54,14 @@ func legal_moves() -> Array[int]:
 
 func seat_count() -> int:
 	return _engine.seat_count
+
+## Hotseat players have no names, only seats.
+func player_name(seat: int) -> String:
+	return "Player %d" % (seat + 1)
+
+## One screen is shared by every player, so every message is shown to whoever holds the device.
+func is_hotseat() -> bool:
+	return true
 
 func can_act() -> bool:
 	return true

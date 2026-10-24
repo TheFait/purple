@@ -26,3 +26,64 @@ if grep -q "RESULT: PASS" /tmp/pp_c1.log && grep -q "RESULT: PASS" /tmp/pp_c2.lo
 else
   echo "GAMEPLAY: FAIL"
 fi
+
+echo "--- Purple arrives as one batch ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server3.log 2>&1 &
+SERVER3=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_purple.gd >/tmp/pp_purple.log 2>&1
+kill "$SERVER3" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_purple.log
+grep -q "RESULT: PASS" /tmp/pp_purple.log && echo "BATCH: PASS" || echo "BATCH: FAIL"
+
+echo "--- late joiner gets a snapshot ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server4.log 2>&1 &
+SERVER4=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_late.gd -- first >/tmp/pp_late1.log 2>&1 &
+FIRST=$!
+sleep 3
+godot --headless --path . --script res://tests/net_client_late.gd -- late >/tmp/pp_late2.log 2>&1
+wait "$FIRST"
+kill "$SERVER4" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_late2.log
+if grep -q "RESULT: PASS" /tmp/pp_late1.log && grep -q "RESULT: PASS" /tmp/pp_late2.log; then
+  echo "SNAPSHOT: PASS"
+else
+  echo "SNAPSHOT: FAIL"
+fi
+
+echo "--- a player disconnects ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server5.log 2>&1 &
+SERVER5=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_leave.gd -- stay >/tmp/pp_stay.log 2>&1 &
+STAY=$!
+sleep 1.5
+godot --headless --path . --script res://tests/net_client_leave.gd -- leave >/tmp/pp_leave.log 2>&1
+wait "$STAY"
+kill "$SERVER5" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_stay.log
+if grep -q "RESULT: PASS" /tmp/pp_stay.log && grep -q "RESULT: PASS" /tmp/pp_leave.log; then
+  echo "DISCONNECT: PASS"
+else
+  echo "DISCONNECT: FAIL"
+fi
+
+echo "--- a pass reaches the other player ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server6.log 2>&1 &
+SERVER6=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_pass.gd -- passer >/tmp/pp_passer.log 2>&1 &
+PASSER=$!
+sleep 1
+godot --headless --path . --script res://tests/net_client_pass.gd -- other >/tmp/pp_other.log 2>&1 &
+OTHER=$!
+wait "$PASSER" "$OTHER"
+kill "$SERVER6" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_passer.log /tmp/pp_other.log
+if grep -q "RESULT: PASS" /tmp/pp_passer.log && grep -q "RESULT: PASS" /tmp/pp_other.log; then
+  echo "PASS-NOTICE: PASS"
+else
+  echo "PASS-NOTICE: FAIL"
+fi
