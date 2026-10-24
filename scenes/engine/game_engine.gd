@@ -18,6 +18,7 @@ signal penalty_triggered(seat: int, amount: int)
 signal pass_available(is_available: bool)
 signal turn_changed(seat: int)
 signal stack_passed(from_seat: int, to_seat: int, count: int)
+signal turn_skipped(from_seat: int, to_seat: int)
 signal diamonds_forever()
 signal round_log(text: String)
 
@@ -204,6 +205,17 @@ func _ensure_cards() -> void:
 	_deck.return_to_deck(recycled)
 	table_cards = kept
 	round_log.emit("Deck recycled mid-stack to keep play going.")
+
+## The player whose turn it is did not come back in time: hand the turn (and the stack) to the
+## next player with no drinks, as a pass would. They start with no contributions.
+func skip_turn() -> void:
+	var from_seat := current_seat
+	round_log.emit("Seat %d is away — skipping to the next player." % (current_seat + 1))
+	current_streak = 0
+	streak_changed.emit(current_streak)
+	pass_available.emit(false)
+	_advance_seat()
+	turn_skipped.emit(from_seat, current_seat)
 
 ## A player left for good. Close the gap in the turn order: if they were ahead of the
 ## current player the current player just moves down a place (the same person is still up);

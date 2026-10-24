@@ -50,6 +50,7 @@ func _initialize() -> void:
 	_test_pass_inherits_stack()
 	_test_diamonds()
 	_test_remove_seat()
+	_test_skip_turn()
 	_test_fuzz_invariants()
 	t.finish()
 	quit()
@@ -274,6 +275,23 @@ func _test_remove_seat() -> void:
 	e4.current_seat = 2
 	e4.remove_seat(2)
 	t.eq(e4.current_seat, 0, "turn wraps to the first seat")
+
+func _test_skip_turn() -> void:
+	var g := _make([[5, H], [9, S]], 3)
+	var e: GameEngine = g.engine
+	e.submit_move(0, GameEngine.Move.RED)
+	e.submit_move(0, GameEngine.Move.HIGHER)
+	var skips: Array = []
+	e.turn_skipped.connect(func(f: int, to: int): skips.append([f, to]))
+	var pool := e.drink_pool()
+	e.skip_turn()
+	t.eq(e.current_seat, 1, "a skipped turn goes to the next seat")
+	t.eq(skips, [[0, 1]], "turn_skipped reports who was skipped and who is up")
+	t.eq(e.drink_pool(), pool, "the stack is kept, nobody drinks")
+	t.eq(e.current_streak, 0, "the next player starts with no contributions")
+	e.current_seat = 2
+	e.skip_turn()
+	t.eq(e.current_seat, 0, "skipping the last seat wraps to the first")
 
 func _test_fuzz_invariants() -> void:
 	var deck := DeckEngine.new()
