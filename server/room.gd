@@ -17,6 +17,8 @@ var join_code: String = ""
 var max_seats: int = 12
 var seats: Array = []  # Array[Seat]
 
+const NAME_MAX := 16
+
 func is_full() -> bool:
 	return seats.size() >= max_seats
 
@@ -29,6 +31,35 @@ func add_seat(peer_id: int, player_name: String) -> int:
 	var index := seats.size()
 	seats.append(Seat.new(peer_id, player_name, index))
 	return index
+
+## The name a player is shown under: trimmed, length-capped, never empty, and numbered
+## ("Sam", "Sam 2") when someone in the room already has it.
+func unique_name(wanted: String) -> String:
+	var base := wanted.strip_edges().left(NAME_MAX)
+	if base.is_empty():
+		base = "Player"
+	var taken := {}
+	for s in seats:
+		taken[s.player_name] = true
+	var candidate := base
+	var n := 2
+	while taken.has(candidate):
+		candidate = "%s %d" % [base, n]
+		n += 1
+	return candidate
+
+## Every player's name, in seat order.
+func seat_names() -> Array:
+	var names: Array = []
+	for s in seats:
+		names.append(s.player_name)
+	return names
+
+func name_of(peer_id: int) -> String:
+	for s in seats:
+		if s.peer_id == peer_id:
+			return s.player_name
+	return ""
 
 func remove_seat(peer_id: int) -> bool:
 	for i in range(seats.size()):

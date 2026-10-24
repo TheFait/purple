@@ -49,6 +49,7 @@ func _initialize() -> void:
 	_test_purple()
 	_test_pass_inherits_stack()
 	_test_diamonds()
+	_test_remove_seat()
 	_test_fuzz_invariants()
 	t.finish()
 	quit()
@@ -197,9 +198,12 @@ func _test_pass_inherits_stack() -> void:
 	t.check(g.log.pass, "pass available at 3 contributions")
 	t.check(e.submit_move(0, GameEngine.Move.HIGHER), "can keep guessing instead of passing")
 	t.eq(e.drink_pool(), 4, "stack grew to 4")
+	var passes: Array = []
+	e.stack_passed.connect(func(f: int, to: int, n: int): passes.append([f, to, n]))
 	t.check(not e.request_pass(1), "wrong seat cannot pass")
 	t.check(e.request_pass(0), "pass allowed after any correct guess at 3+")
 	t.eq(e.current_seat, 1, "turn moves to the next seat")
+	t.eq(passes, [[0, 1, 4]], "stack_passed reports who passed to whom, and how many cards")
 	t.eq(e.drink_pool(), 4, "next player inherits the stack")
 	t.eq(e.current_streak, 0, "inheritor's contributions start at 0")
 	t.check(not e.request_pass(1), "inheritor cannot pass immediately")
@@ -230,6 +234,46 @@ func _test_diamonds() -> void:
 	e3.submit_move(0, GameEngine.Move.HIGHER)
 	e3.submit_move(0, GameEngine.Move.HIGHER)
 	t.eq(g3.log.diamonds, 0, "only on correct guesses")
+
+func _test_remove_seat() -> void:
+	# Three seats, seat 1 is up. Seat 0 leaves: the same player is still up, now at seat 0.
+	var g := _make([[5, H], [9, S]], 3)
+	var e: GameEngine = g.engine
+	e.current_seat = 1
+	var turns: Array = []
+	e.turn_changed.connect(func(s: int): turns.append(s))
+	e.remove_seat(0)
+	t.eq(e.seat_count, 2, "seat count drops")
+	t.eq(e.current_seat, 0, "a leaver ahead of the current seat shifts it down")
+	t.eq(turns, [], "no new turn when the same player is still up")
+
+	# Seat 2 leaves while seat 0 is up: nothing changes for the current player.
+	var g2 := _make([[5, H], [9, S]], 3)
+	var e2: GameEngine = g2.engine
+	e2.remove_seat(2)
+	t.eq(e2.current_seat, 0, "a leaver behind the current seat changes nothing")
+
+	# The current player (seat 1 of 3) leaves holding a stack: it passes on to the next player.
+	var g3 := _make([[5, H], [9, S]], 3)
+	var e3: GameEngine = g3.engine
+	e3.submit_move(0, GameEngine.Move.RED)
+	e3.submit_move(0, GameEngine.Move.HIGHER)
+	e3.current_seat = 1
+	var turns3: Array = []
+	e3.turn_changed.connect(func(s: int): turns3.append(s))
+	var stack_before := e3.drink_pool()
+	e3.remove_seat(1)
+	t.eq(e3.current_seat, 1, "the next player slides into the vacated place")
+	t.eq(turns3, [1], "a new turn is announced")
+	t.eq(e3.drink_pool(), stack_before, "the stack is kept, nobody drinks")
+	t.eq(e3.current_streak, 0, "the inheritor starts at zero contributions")
+
+	# The last seat of the order holds the turn and leaves: it wraps to seat 0.
+	var g4 := _make([[5, H]], 3)
+	var e4: GameEngine = g4.engine
+	e4.current_seat = 2
+	e4.remove_seat(2)
+	t.eq(e4.current_seat, 0, "turn wraps to the first seat")
 
 func _test_fuzz_invariants() -> void:
 	var deck := DeckEngine.new()

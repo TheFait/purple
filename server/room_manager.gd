@@ -24,7 +24,7 @@ func join(peer_id: int, room_id_or_code: String, player_name: String) -> Room:
 	var room := _resolve(room_id_or_code)
 	if room == null or room.is_full():
 		return null
-	if room.add_seat(peer_id, player_name) == -1:
+	if room.add_seat(peer_id, room.unique_name(player_name)) == -1:
 		return null
 	_peer_to_room[peer_id] = room.id
 	return room

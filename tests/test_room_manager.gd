@@ -26,6 +26,19 @@ func _initialize() -> void:
 	t.check(prv.join_code != "", "private room has a code")
 	t.check(rm.join(2000, prv.join_code, "CodeJoiner") != null, "join by code works")
 	t.eq(prv.seat_of(2000), 0, "first private seat is index 0")
+	# Names are trimmed, capped and numbered when taken.
+	var named := rm.create_room("Names", true)
+	rm.join(3000, named.id, "  Sam  ")
+	rm.join(3001, named.id, "Sam")
+	rm.join(3002, named.id, "")
+	rm.join(3003, named.id, "A very long name indeed, far past the cap")
+	t.eq(named.name_of(3000), "Sam", "name is trimmed")
+	t.eq(named.name_of(3001), "Sam 2", "a duplicate name gets a number")
+	t.eq(named.name_of(3002), "Player", "an empty name becomes Player")
+	t.eq(named.name_of(3003).length(), Room.NAME_MAX, "a long name is capped")
+	t.eq(named.seat_names().size(), 4, "seat_names lists every player")
+	t.eq(named.seat_names()[1], "Sam 2", "seat_names are in seat order")
+
 	# Private room must NOT be joinable by its internal id (security: ids are guessable).
 	t.check(rm.join(2001, prv.id, "ByIdShouldFail") == null, "private room not joinable by id")
 
