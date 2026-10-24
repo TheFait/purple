@@ -4,6 +4,10 @@ extends Node2D
 
 var _overlay: Control
 var _end_button: Button
+var _recon: Control            # shown to a player whose connection dropped
+var _recon_title: Label
+var _recon_time: Label
+var _recon_button: Button
 
 func _ready() -> void:
 	var layer := CanvasLayer.new()
@@ -48,12 +52,62 @@ func _ready() -> void:
 	box.add_child(_end_button)
 	box.add_child(_choice("LEAVE GAME", NeonTheme.RED, func(): Net.leave_room()))
 
+	_build_reconnect_screen(root)
+	Net.reconnecting.connect(_on_reconnecting)
+	Net.resumed.connect(func(): _recon.visible = false)
+	Net.session_expired.connect(_on_session_expired)
 	Net.lobby_changed.connect(_on_lobby_changed)
 	Net.left_room.connect(func(): get_tree().change_scene_to_file(OnlineScreen.SCENE_MENU))
 	Net.connection_lost.connect(func():
 		OnlineScreen.flash_message = "The connection to the server was lost."
 		get_tree().change_scene_to_file(OnlineScreen.SCENE_MENU))
 	_overlay.visibility_changed.connect(func(): _end_button.visible = Net.is_host())
+
+## Shown over everything while this client is getting its seat back after a dropped connection.
+func _build_reconnect_screen(root: Control) -> void:
+	var cover := ColorRect.new()
+	cover.color = Color(0.03, 0.0, 0.1, 0.88)
+	cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cover.visible = false
+	root.add_child(cover)
+	_recon = cover
+	var holder := CenterContainer.new()
+	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cover.add_child(holder)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	holder.add_child(box)
+	_recon_title = _label("RECONNECTING...", 48, NeonTheme.GOLD, NeonTheme.FONT_HEAD)
+	_recon_time = _label("", 30, NeonTheme.TEXT, NeonTheme.FONT_BODY)
+	box.add_child(_recon_title)
+	box.add_child(_recon_time)
+	_recon_button = _choice("BACK TO MENU", NeonTheme.PURPLE, func():
+		Net.stop_client()
+		get_tree().change_scene_to_file(OnlineScreen.SCENE_MENU))
+	_recon_button.visible = false
+	box.add_child(_recon_button)
+
+func _label(text: String, size: int, color: Color, font: Font) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	return l
+
+func _on_reconnecting(seconds_left: int) -> void:
+	_overlay.visible = false
+	_recon.visible = true
+	_recon_title.text = "RECONNECTING..."
+	_recon_time.text = "%d:%02d left to get your seat back" % [seconds_left / 60, seconds_left % 60]
+	_recon_button.visible = false
+
+func _on_session_expired() -> void:
+	_recon.visible = true
+	_recon_title.text = "YOU WERE REMOVED"
+	_recon_time.text = "The table moved on without you."
+	_recon_button.visible = true
 
 func _choice(text: String, accent: Color, action: Callable) -> Button:
 	var b := Button.new()

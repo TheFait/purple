@@ -71,6 +71,9 @@ var _queue: Array[Dictionary] = []
 var _running: bool = false
 var _start_pending: bool = false
 var _active_seat: int = 0
+var _away: Array = []                  # players who dropped: [[seat, hold seconds left, turn seconds left or -1], ...]
+var _away_banner: Label
+var _away_tweens: Dictionary = {}      # seat dot -> its pulsing tween
 var _turn_announced: bool = false  # false until the opening turn has played
 var _lost_round: bool = false    # the table clear that follows a penalty is the chaotic one
 var _streak_shown: int = 0
@@ -122,6 +125,9 @@ func _ready() -> void:
 	presenter.seats_changed.connect(func(count: int, current: int): _enqueue("seats", [count, current]))
 	presenter.player_left.connect(func(who: String): _enqueue("left", [who]))
 	presenter.stack_passed.connect(func(from: int, to: int, n: int): _enqueue("passed", [from, to, n]))
+	presenter.turn_skipped.connect(func(from: int, to: int): _enqueue("skipped", [from, to]))
+	presenter.away_changed.connect(_on_away_list)   # a live countdown, so it skips the animation queue
+	_build_away_banner()
 	presenter.phantoms_added.connect(func(cs: Array): _enqueue("phantoms", [cs]))
 	presenter.diamonds_forever.connect(func(): _enqueue("diamonds"))
 	presenter.round_log.connect(func(t: String): _enqueue("log", [t]))
@@ -468,6 +474,7 @@ func _play(kind: String, args: Array) -> void:
 		"seats": _on_seats(args[1])
 		"left": await _on_left(args[0])
 		"passed": await _on_passed(args[0], args[1], args[2])
+		"skipped": await _on_skipped(args[0], args[1])
 		"phantoms": await _on_phantoms(args[0])
 		"diamonds": await _on_diamonds()
 		"pass": _on_pass_available(args[0])
@@ -673,11 +680,74 @@ func _on_turn(seat: int) -> void:
 		await _wait(0.25)
 	_turn_announced = true
 
+## True when the turn change being played is announced by a "passed" or "skipped" event behind it.
 func _pass_queued() -> bool:
 	for ev in _queue:
-		if ev.kind == "passed":
+		if ev.kind == "passed" or ev.kind == "skipped":
 			return true
 	return false
+
+## The player on turn did not come back in time, so their turn is skipped.
+func _on_skipped(from_seat: int, to_seat: int) -> void:
+	Sfx.play("lose", 0.8)
+	var gone: String = presenter.player_name(from_seat)
+	await fx.slam_text("Skipping %s" % gone, NeonTheme.GOLD, 64, 0.9, NeonTheme.FONT_HEAD)
+	var color: Color = SEAT_COLORS[to_seat % SEAT_COLORS.size()]
+	await fx.slam_text("%s,\nyou're up!" % presenter.player_name(to_seat), color, 80, 0.7, NeonTheme.FONT_HEAD)
+
+# --- players who dropped ---------------------------------------------------
+
+func _build_away_banner() -> void:
+	_away_banner = Label.new()
+	_away_banner.anchor_left = 0.05
+	_away_banner.anchor_right = 0.95
+	_away_banner.anchor_top = 0.078
+	_away_banner.anchor_bottom = 0.15
+	_away_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_away_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_away_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_away_banner.add_theme_font_override("font", NeonTheme.FONT_BODY)
+	_away_banner.add_theme_font_size_override("font_size", 22)
+	_away_banner.add_theme_color_override("font_color", NeonTheme.GOLD)
+	_away_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_away_banner.add_theme_constant_override("outline_size", 6)
+	_away_banner.visible = false
+	root.add_child(_away_banner)
+
+func _on_away_list(list: Array) -> void:
+	_away = list
+	_refresh_away()
+
+## Grey out and pulse the dots of players who are away, and say how long the table holds on.
+func _refresh_away() -> void:
+	var away_seats := {}
+	var lines: PackedStringArray = []
+	for entry: Array in _away:
+		var seat := int(entry[0])
+		away_seats[seat] = true
+		var who: String = presenter.player_name(seat)
+		lines.append("%s lost connection, holding the seat... %s" % [who, _clock(int(entry[1]))])
+		if int(entry[2]) >= 0:
+			lines.append("waiting for %s... %s" % [who, _clock(int(entry[2]))])
+	_away_banner.text = "\n".join(lines)
+	_away_banner.visible = not lines.is_empty()
+	for seat in _player_dots.size():
+		_set_dot_away(_player_dots[seat], away_seats.has(seat))
+
+func _set_dot_away(dot: Panel, away: bool) -> void:
+	if away and not _away_tweens.has(dot):
+		dot.modulate = Color(0.55, 0.55, 0.62, 1.0)
+		var tw := create_tween().set_loops()
+		tw.tween_property(dot, "modulate:a", 0.3, 0.55)
+		tw.tween_property(dot, "modulate:a", 1.0, 0.55)
+		_away_tweens[dot] = tw
+	elif not away and _away_tweens.has(dot):
+		_away_tweens[dot].kill()
+		_away_tweens.erase(dot)
+		dot.modulate = Color.WHITE
+
+func _clock(seconds: int) -> String:
+	return "%d:%02d" % [seconds / 60, seconds % 60]
 
 ## The stack changed hands. The player who passed sees where it went; everyone else is told
 ## who is up (on a shared hotseat screen the device holder is the one who passed).
@@ -710,7 +780,9 @@ func _show_players(active: int) -> void:
 		dot.custom_minimum_size = Vector2(PLAYER_DOT, PLAYER_DOT)
 	# Someone left: drop the extra dots (the row must never show more players than there are).
 	while _player_dots.size() > count:
-		_player_dots.pop_back().queue_free()
+		var gone: Panel = _player_dots.pop_back()
+		_away_tweens.erase(gone)
+		gone.queue_free()
 	for seat in _player_dots.size():
 		var dot := _player_dots[seat]
 		var color: Color = SEAT_COLORS[seat % SEAT_COLORS.size()]
@@ -725,6 +797,7 @@ func _show_players(active: int) -> void:
 		label.add_theme_font_size_override("font_size", 34)
 		label.add_theme_color_override("font_color", color.lightened(0.4))
 		create_tween().tween_property(dot, "custom_minimum_size", Vector2(dot_size, dot_size), 0.2)
+	_refresh_away()
 
 # --- helpers ---------------------------------------------------------------
 
