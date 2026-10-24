@@ -60,11 +60,11 @@ start screen -> Play menu -> [Offline hotseat]            -> game (GameManager)
 - [x] Tests: `test_room_manager.gd` for states, host rules, throttling; integration test with 3 clients through create, join by code, start.
 
 ### 2C. Late join, reconnect, disconnect handling
-- [ ] `_client_snapshot`; a mid-game joiner is seated at the end of the turn order (decision 2), so the engine must be able to grow `seat_count` without disturbing the current seat or stack.
-- [ ] Session tokens, seat holding (60 s), the 20 s turn wait and skip, and the leaves-for-good rule (decision 5).
-- [ ] The waiting-for-player UI: `_client_player_status` message, greyed pulsing dot, countdown banner, "Reconnecting..." overlay, "removed" screen (see the section above).
-- [ ] Remove the obsolete `_awaiting_pass` backlog item (Ride no longer exists, so pass is never a locked state).
-- [ ] Tests: drop and reconnect a client mid-game and compare its snapshot with the server's table; a late joiner is seated last and sees the same stack; the 20 s skip and 60 s release fire on time (use a test clock, not real waiting); the status messages carry decreasing seconds; no deck contents in any client log.
+- [x] `_client_snapshot`; a mid-game joiner is seated at the end of the turn order (decision 2), so the engine must be able to grow `seat_count` without disturbing the current seat or stack.
+- [x] Session tokens (kept in memory while the app runs, not saved to disk, so an app restart cannot rejoin), seat holding (60 s), the 20 s turn wait and skip, and the leaves-for-good rule (decision 5).
+- [x] The waiting-for-player UI: `_client_player_status` message, greyed pulsing dot, countdown banner, "Reconnecting..." overlay, "removed" screen (see the section above).
+- [x] Remove the obsolete `_awaiting_pass` backlog item (Ride no longer exists, so pass is never a locked state).
+- [x] Tests: drop and reconnect a client mid-game and compare its snapshot with the server's table; a late joiner is seated last and sees the same stack; the 20 s skip and 60 s release fire on time (use a test clock, not real waiting); the status messages carry decreasing seconds (unit test). Not covered by the new scenarios: the "no deck contents in any client log" grep, which is still a TODO for the networked tests.
 
 ### 2D. Remote hosting
 - [ ] Port from a command-line argument (`-- --port 9000`) and a small startup log (address, port, room count, player count).

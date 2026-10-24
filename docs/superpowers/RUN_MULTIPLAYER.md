@@ -40,9 +40,12 @@ When a player disconnects mid-game, the server now reconciles the room automatic
 - Each remaining peer receives a fresh `_client_seated` RPC so their cached `_my_seat`
   reflects the re-packed indices after the leaver's slot is removed.
 
-**Not yet implemented (Iteration 2):** full reconnection flow and late-joiner state sync
-(the stack, contributions and turn); the 60-second seat hold and waiting UI are in the
-Iteration 2 plan (a dropped player is currently removed at once). (The old `_awaiting_pass` edge case is gone: Ride
+**Dropped connections (Iteration 2C):** in a running game a disconnect no longer removes the
+player. Their seat is held for 60 seconds; if it is their turn the table waits 20 seconds and
+then skips them (the stack passes on, no drinks). Everyone sees a greyed pulsing dot and a
+countdown, and the dropped player's client keeps retrying and shows "Reconnecting..." until it
+gets the seat back (the table is replayed from a snapshot) or is told it was removed. Lobbies
+still remove a disconnected player immediately. (The old `_awaiting_pass` edge case is gone: Ride
 was removed, so passing never locks the game.)
 
 ## What is Iteration 2?
