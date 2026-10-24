@@ -7,6 +7,9 @@ const ROOM_MANAGER := preload("res://server/room_manager.gd")
 const GAME_ENGINE  := preload("res://scenes/engine/game_engine.gd")
 const DECK_ENGINE  := preload("res://scenes/engine/deck_engine.gd")
 const JOIN_THROTTLE := preload("res://server/join_throttle.gd")
+const SEAT_HOLD := preload("res://server/seat_hold.gd")
+const RECONNECT_WINDOW_MSEC := 60_000   # how long a dropped client keeps trying to get its seat back
+const RECONNECT_RETRY_MSEC := 2_000
 const MAX_ROOMS := 200
 const ROOM_NAME_MAX := 24
 const DB_PATH         := "res://assets/database/card_database.json"
@@ -16,6 +19,9 @@ const COLLECTION_PATH := "res://assets/database/card_collection.json"
 signal connected()
 signal connect_failed()
 signal connection_lost()                 # the server went away after we had connected
+signal reconnecting(seconds_left: int)   # the connection dropped mid-game; we are trying to get the seat back
+signal resumed()                         # ... and we got it
+signal session_expired()                 # ... or the hold ran out / the server no longer knows us
 signal lobby_changed(info: Dictionary)   # who is in the room, who hosts, and whether a game is running
 signal left_room()
 signal notice(text: String)              # a refusal worth showing ("only the host can start")
@@ -34,6 +40,8 @@ signal turn_changed(seat: int)
 signal phantoms_added(cards: Array)
 signal seats_changed(count: int, current_seat: int)   # someone joined or left; the turn order may have shifted
 signal player_left(player_name: String)
+signal away_changed(list: Array)      # players who dropped: [[seat, hold seconds left, turn seconds left or -1], ...]
+signal turn_skipped(from_seat: int, to_seat: int)
 signal stack_passed(from_seat: int, to_seat: int, count: int)
 signal table_restored(cards: Array)   # a snapshot of the stack, for a client that joined or reloaded late
 signal diamonds_forever()
@@ -47,7 +55,21 @@ var _throttle: JoinThrottle  # server only — slows down join-code guessing
 ## down (the lobby is skipped). The automated tests use this; a real server leaves it off.
 var auto_start_open_table: bool = false
 
+## Server only, set before start_server: how long a dropped player's seat is held, and how long
+## the table waits for them on their turn. The tests use short ones.
+var hold_msec: int = SeatHold.HOLD_MSEC
+var turn_wait_msec: int = SeatHold.TURN_WAIT_MSEC
+var _seat_hold: SeatHold
+
 var room_info: Dictionary = {}   # client only — the last lobby info the server sent
+var session_token: String = ""   # client only — proves who we are when getting a seat back after a drop
+
+var _server_ip: String = ""      # client only — where to reconnect to
+var _server_port: int = 0
+var _reconnecting: bool = false
+var _reconnect_deadline_msec: int = 0
+var _next_attempt_msec: int = 0
+var _last_countdown: int = -1
 
 var _my_seat: int = -1           # client only
 var _current_turn_seat: int = 0  # client only (mirror of server turn)
@@ -65,15 +87,25 @@ func start_server(port: int) -> void:
 	_auto_room = _rooms.create_room("Open Table", true, true)
 	_auto_room.auto_start = auto_start_open_table
 	_throttle = JOIN_THROTTLE.new()
+	_seat_hold = SEAT_HOLD.new()
+	_seat_hold.hold_msec = hold_msec
+	_seat_hold.turn_wait_msec = turn_wait_msec
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 ## Connect to a server. Returns false (and emits connect_failed) when the address is unusable.
 func start_client(ip: String, port: int) -> bool:
 	stop_client()
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_client(ip, port)
-	if err != OK:
+	_server_ip = ip
+	_server_port = port
+	if not _open_connection():
 		connect_failed.emit()
+		return false
+	return true
+
+func _open_connection() -> bool:
+	var peer := ENetMultiplayerPeer.new()
+	var err := peer.create_client(_server_ip, _server_port)
+	if err != OK:
 		return false
 	multiplayer.multiplayer_peer = peer
 	if not multiplayer.connected_to_server.is_connected(_on_connected):
@@ -82,7 +114,7 @@ func start_client(ip: String, port: int) -> bool:
 		multiplayer.server_disconnected.connect(_on_server_disconnected)
 	return true
 
-## Drop the current connection (used before retrying, or when leaving an online game).
+## Drop the current connection for good (leaving, going back, retrying): the seat is forgotten.
 func stop_client() -> void:
 	if multiplayer.multiplayer_peer != null and not multiplayer.is_server():
 		multiplayer.multiplayer_peer.close()
@@ -93,16 +125,73 @@ func stop_client() -> void:
 	_seat_count = 0
 	_names = []
 	room_info = {}
+	session_token = ""
+	_reconnecting = false
 
 func _on_connected() -> void:
+	if _reconnecting:
+		rpc_id(1, "rpc_resume", session_token)   # prove who we are and take the seat back
+		return
 	connected.emit()
 
 func _on_connection_failed() -> void:
+	if _reconnecting:
+		return   # the retry timer will try again
 	connect_failed.emit()
 
+## The server went away. In a running game we hold on to our seat and keep trying to get it
+## back; anywhere else the connection is simply lost.
 func _on_server_disconnected() -> void:
+	if _can_resume():
+		_begin_reconnect()
+		return
 	stop_client()
 	connection_lost.emit()
+
+func _can_resume() -> bool:
+	return not session_token.is_empty() and room_info.get("state", "") == "playing" and not _server_ip.is_empty()
+
+func _begin_reconnect() -> void:
+	if multiplayer.multiplayer_peer != null and not multiplayer.is_server():
+		multiplayer.multiplayer_peer.close()
+		multiplayer.multiplayer_peer = null
+	_reconnecting = true
+	var now := Time.get_ticks_msec()
+	_reconnect_deadline_msec = now + RECONNECT_WINDOW_MSEC
+	_next_attempt_msec = now + 500
+	_last_countdown = -1
+	reconnecting.emit(RECONNECT_WINDOW_MSEC / 1000)
+
+## Simulate losing the connection (used by the tests, handy for trying the reconnect screens).
+func lose_connection() -> void:
+	if _can_resume():
+		_begin_reconnect()
+	else:
+		stop_client()
+		connection_lost.emit()
+
+func _give_up_reconnecting() -> void:
+	stop_client()
+	session_expired.emit()
+
+func _process(_delta: float) -> void:
+	if _rooms != null:
+		_hold_tick()
+	elif _reconnecting:
+		_reconnect_tick()
+
+func _reconnect_tick() -> void:
+	var now := Time.get_ticks_msec()
+	if now >= _reconnect_deadline_msec:
+		_give_up_reconnecting()
+		return
+	var left := ceili((_reconnect_deadline_msec - now) / 1000.0)
+	if left != _last_countdown:
+		_last_countdown = left
+		reconnecting.emit(left)
+	if now >= _next_attempt_msec:
+		_next_attempt_msec = now + RECONNECT_RETRY_MSEC
+		_open_connection()
 
 ## Forget the table (a lobby, a left room, a lost connection): its mirrors are stale.
 func _reset_table_mirrors() -> void:
@@ -177,6 +266,7 @@ func rpc_join_room(room_or_code: String, player_name: String) -> void:
 	elif room.state == Room.State.PLAYING:
 		_grow_engine(room)   # joining a running game: take the last seat
 	_announce_room(room)
+	_send_session(room, sender)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_create_room(room_name: String, is_public: bool, player_name: String) -> void:
@@ -195,6 +285,32 @@ func rpc_create_room(room_name: String, is_public: bool, player_name: String) ->
 	if clean_name.is_empty():
 		room.room_name = "%s's table" % room.name_of(sender)
 	_announce_room(room)
+	_send_session(room, sender)
+
+## A player whose connection dropped comes back with the token the server gave them.
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_resume(token: String) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var now := Time.get_ticks_msec()
+	if _throttle.blocked(sender, now):
+		rpc_id(sender, "_client_resume_failed")
+		return
+	var result := _rooms.resume(token, sender)
+	if result.is_empty():
+		_throttle.record_failure(sender, now)   # guessing tokens counts like guessing codes
+		rpc_id(sender, "_client_resume_failed")
+		return
+	var room: Room = result.room
+	if int(result.stale_peer) >= 0:
+		multiplayer.multiplayer_peer.disconnect_peer(int(result.stale_peer))   # a half-dead old connection
+	rpc_id(sender, "_client_resumed")
+	_announce_room(room)
+	if room.has_meta("engine"):
+		rpc_id(sender, "_client_events", _snapshot(room))
+		_seat_hold.status_now(room)
+		_send_away_list(room)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_leave_room() -> void:
@@ -260,6 +376,20 @@ func _client_public_rooms(list: Array) -> void:
 	public_rooms.emit(list)
 
 @rpc("authority", "call_remote", "reliable")
+func _client_session(token: String) -> void:
+	session_token = token
+
+@rpc("authority", "call_remote", "reliable")
+func _client_resumed() -> void:
+	_reconnecting = false
+	resumed.emit()
+
+@rpc("authority", "call_remote", "reliable")
+func _client_resume_failed() -> void:
+	if _reconnecting:
+		_give_up_reconnecting()
+
+@rpc("authority", "call_remote", "reliable")
 func _client_lobby(info: Dictionary) -> void:
 	room_info = info
 	if info.get("state", "") == "lobby":
@@ -268,6 +398,7 @@ func _client_lobby(info: Dictionary) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _client_left_room() -> void:
+	session_token = ""
 	room_info = {}
 	_my_seat = -1
 	_reset_table_mirrors()
@@ -285,6 +416,76 @@ func _announce_room(room: Room) -> void:
 	for pid: int in room.peer_ids():
 		rpc_id(pid, "_client_seated", room.seat_of(pid), room.room_name)
 	_broadcast(room, "_client_lobby", [room.lobby_info()])
+
+func _send_session(room: Room, peer_id: int) -> void:
+	var index := room.seat_of(peer_id)
+	if index >= 0:
+		rpc_id(peer_id, "_client_session", room.seats[index].token)
+
+func _now() -> int:
+	return Time.get_ticks_msec()
+
+## Tell the room which players are away and how long each has left (an empty list clears it).
+func _send_away_list(room: Room) -> void:
+	if not room.has_meta("engine"):
+		return
+	var engine: GameEngine = room.get_meta("engine")
+	_queue_event(room, "away", [_seat_hold.status_list(room, engine.current_seat, _now())])
+	_flush_events(room)
+
+## A connection dropped in a running game: keep the seat for a while instead of removing it.
+func _hold_seat(room: Room, peer_id: int) -> void:
+	_throttle.forget(peer_id)
+	_rooms.mark_away(peer_id, _now())
+	_seat_hold.status_now(room)
+	_send_away_list(room)
+
+## Called every frame on the server: skip players who are away on their turn, release seats
+## whose hold ran out, and keep everybody's countdown fresh.
+func _hold_tick() -> void:
+	var now := _now()
+	for room: Room in _rooms.all_rooms():
+		if room.state != Room.State.PLAYING or not room.has_meta("engine"):
+			continue
+		var engine: GameEngine = room.get_meta("engine")
+		for action: Dictionary in _seat_hold.tick(room, engine.current_seat, now):
+			if not is_instance_valid(room) or not room.has_meta("engine"):
+				break
+			_run_hold_action(room, engine, action)
+
+func _run_hold_action(room: Room, engine: GameEngine, action: Dictionary) -> void:
+	match action.type:
+		"status":
+			_send_away_list(room)
+		"skip":
+			var seat := room.seat_by_token(String(action.token))
+			if seat != null and seat.seat_index == engine.current_seat:
+				engine.skip_turn()
+				_seat_hold.status_now(room)
+				_send_away_list(room)
+		"release":
+			var seat := room.seat_by_token(String(action.token))
+			if seat != null:
+				_release_seat(room, seat.seat_index)
+
+## The hold ran out: the seat is gone for good. Same cleanup as someone leaving mid-game.
+func _release_seat(room: Room, index: int) -> void:
+	var engine: GameEngine = room.get_meta("engine")
+	_queue_event(room, "left", [room.seats[index].player_name])
+	engine.remove_seat(index)
+	_rooms.drop_seat(room, index)
+	if room.player_count() == 0:
+		_seat_hold.forget(room)
+		if room.persistent:
+			_end_game(room)
+		else:
+			engine.queue_free()
+		return
+	_queue_event(room, "seats", _seats_args(room, engine))
+	_flush_events(room)
+	_seat_hold.status_now(room)
+	_send_away_list(room)
+	_announce_room(room)
 
 ## The host's room, or null (with a notice to the sender) when they are not its host.
 func _host_room(sender: int, refusal: String) -> Room:
@@ -315,6 +516,7 @@ func _end_game(room: Room) -> void:
 ## Deal a new game to everyone in the room: one engine with a seat per player.
 func _start_game(room: Room) -> void:
 	room.state = Room.State.PLAYING
+	room.turn_since_msec = _now()
 	room.set_meta("events", [])
 	var deck := DECK_ENGINE.new()
 	deck.load_from_json(DB_PATH, COLLECTION_PATH)
@@ -329,7 +531,10 @@ func _start_game(room: Room) -> void:
 	engine.pool_changed.connect(func(p: int): _queue_event(room, "pool", [p]))
 	engine.penalty_triggered.connect(func(s: int, amt: int): _queue_event(room, "penalty", [s, amt]))
 	engine.pass_available.connect(func(on: bool): _queue_event(room, "pass", [on]))
-	engine.turn_changed.connect(func(s: int): _queue_event(room, "turn", [s]))
+	engine.turn_changed.connect(func(s: int):
+		room.turn_since_msec = _now()
+		_queue_event(room, "turn", [s]))
+	engine.turn_skipped.connect(func(f: int, to: int): _queue_event(room, "skipped", [f, to]))
 	engine.stack_passed.connect(func(f: int, to: int, n: int): _queue_event(room, "passed", [f, to, n]))
 	engine.phantoms_added.connect(func(cards: Array): _queue_event(room, "phantoms", [_card_dicts(cards)]))
 	engine.diamonds_forever.connect(func(): _queue_event(room, "diamonds", []))
@@ -372,6 +577,7 @@ func _snapshot(room: Room) -> Array:
 		["pass", [engine.can_pass()]],
 		["turn", [engine.current_seat]],
 		["seats", _seats_args(room, engine)],
+		["away", [_seat_hold.status_list(room, engine.current_seat, _now())]],
 	]
 
 func _broadcast(room: Room, method: String, args: Array = []) -> void:
@@ -379,7 +585,14 @@ func _broadcast(room: Room, method: String, args: Array = []) -> void:
 		callv("rpc_id", [pid, method] + args)
 
 func _on_peer_disconnected(peer_id: int) -> void:
-	_remove_player(peer_id)
+	if _rooms == null:
+		return
+	var room := _rooms.room_of(peer_id)
+	# In a running game a dropped connection keeps its seat for a while; anywhere else it is gone.
+	if room != null and room.state == Room.State.PLAYING and room.has_meta("engine") and room.seat_of(peer_id) >= 0:
+		_hold_seat(room, peer_id)
+	else:
+		_remove_player(peer_id)
 
 ## A player is gone (disconnected or left on purpose): free their seat, tell the table who
 ## left, close the gap in the turn order, and pass the host role on if it was theirs.
@@ -398,6 +611,10 @@ func _remove_player(peer_id: int) -> void:
 	if room.player_count() == 0:
 		if room.persistent:
 			_end_game(room)   # the always-open table starts fresh for the next visitors
+		elif room.has_meta("engine"):
+			var orphan: GameEngine = room.get_meta("engine")
+			orphan.queue_free()
+		_seat_hold.forget(room)
 		return
 	if room.state == Room.State.PLAYING and room.has_meta("engine"):
 		var engine: GameEngine = room.get_meta("engine")
@@ -466,6 +683,8 @@ func _apply_event(kind: String, args: Array) -> void:
 			seats_changed.emit(_seat_count, _current_turn_seat)
 		"passed": stack_passed.emit(int(args[0]), int(args[1]), int(args[2]))
 		"left": player_left.emit(String(args[0]))
+		"away": away_changed.emit(args[0])
+		"skipped": turn_skipped.emit(int(args[0]), int(args[1]))
 
 func _cards_from(dicts: Array) -> Array:
 	var cards: Array = []
@@ -500,7 +719,7 @@ func is_hotseat() -> bool:
 	return false
 
 func can_act() -> bool:
-	return _my_seat == _current_turn_seat
+	return not _reconnecting and _my_seat == _current_turn_seat
 
 func local_seat() -> int:
 	return _my_seat

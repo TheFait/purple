@@ -15,6 +15,8 @@ signal turn_changed(seat: int)
 signal seats_changed(count: int, current_seat: int)   # never emitted offline; part of the shared presenter contract
 signal player_left(player_name: String)                       # likewise
 signal stack_passed(from_seat: int, to_seat: int, count: int)
+signal away_changed(list: Array)                               # never emitted offline; part of the shared presenter contract
+signal turn_skipped(from_seat: int, to_seat: int)              # likewise
 signal table_restored(cards: Array)   # never emitted offline; part of the shared presenter contract
 signal phantoms_added(cards: Array)
 signal diamonds_forever()

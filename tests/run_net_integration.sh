@@ -106,3 +106,22 @@ if grep -q "RESULT: PASS" /tmp/pp_lhost.log && grep -q "RESULT: PASS" /tmp/pp_lg
 else
   echo "LOBBY: FAIL"
 fi
+
+for MODE in resume turnskip; do
+  echo "--- dropped connection: $MODE ---"
+  godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server8.log 2>&1 &
+  SERVER8=$!
+  sleep 2
+  godot --headless --path . --script res://tests/net_client_hold.gd -- host $MODE >/tmp/pp_hhost.log 2>&1 &
+  HHOST=$!
+  sleep 1
+  godot --headless --path . --script res://tests/net_client_hold.gd -- guest $MODE >/tmp/pp_hguest.log 2>&1
+  wait "$HHOST"
+  kill "$SERVER8" 2>/dev/null
+  grep -E "OK:|FAIL:|RESULT" /tmp/pp_hhost.log /tmp/pp_hguest.log
+  if grep -q "RESULT: PASS" /tmp/pp_hhost.log && grep -q "RESULT: PASS" /tmp/pp_hguest.log; then
+    echo "HOLD-$MODE: PASS"
+  else
+    echo "HOLD-$MODE: FAIL"
+  fi
+done

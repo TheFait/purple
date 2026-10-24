@@ -32,7 +32,7 @@ func _process(delta: float) -> bool:
 			_t.check(_my_seat == 1, "leaver had the second seat")
 			_t.finish()
 			return true
-	elif _elapsed > 6.0:
+	elif _elapsed > 13.0:   # the seat is held for the test server's 4 s before the leaver is reported
 		_t.check(_my_seat == 0, "staying client keeps seat 0")
 		_t.eq(_left_names, ["Ben"], "the staying client is told who disconnected")
 		_t.check(_seat_counts.has(2), "it saw the room grow to two players")
