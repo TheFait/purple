@@ -8,7 +8,7 @@ bash tests/run_net_integration.sh
 ```
 
 This spins up a headless server and 2 headless clients, verifies both clients receive
-distinct seats (0 and 1), confirms turn events alternate, and checks that no deck
+distinct seats (0 and 1), confirms the second client sees the first client's moves (a wrong guess keeps the turn with the same player), and checks that no deck
 contents ever reach the client logs (server is authoritative).
 
 ## Start the dedicated server (headless)
@@ -39,18 +39,15 @@ When a player disconnects mid-game, the server now reconciles the room automatic
 - Each remaining peer receives a fresh `_client_seated` RPC so their cached `_my_seat`
   reflects the re-packed indices after the leaver's slot is removed.
 
-**Not yet implemented (Iteration 2):** full reconnection flow, late-joiner state sync
-(deck position, streak, pool), and the `_awaiting_pass` edge case when the active player
-disconnects mid pass/ride decision.
+**Not yet implemented (Iteration 2):** full reconnection flow and late-joiner state sync
+(the stack, contributions and turn). What happens when the active player leaves for good is
+an open decision in the Iteration 2 plan. (The old `_awaiting_pass` edge case is gone: Ride
+was removed, so passing never locks the game.)
 
 ## What is Iteration 2?
 
-- Wire `scenes/game.tscn` as an online client (replace `GameManager` binding with `Net` binding).
-- Public-room browser UI and private-room code-entry UI.
-- Remote hosting / non-localhost server addresses.
-- Late-joiner full state-sync (deck position, streak, pool).
-- Full reconnection support.
-- Handle `_awaiting_pass` edge case when active player disconnects.
+See `plans/2026-10-23-purple-post-multiplayer-iter2.md`: wire the GUI client to `Net`, batch
+events per action, lobby with invite codes and names, late join and reconnect, remote hosting.
 
 ## Notes
 
