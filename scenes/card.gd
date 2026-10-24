@@ -107,6 +107,13 @@ func flip_animated(duration: float = 0.32, rest_scale: float = 1.0) -> void:
 	tw.tween_property(self, "scale", Vector2(rest_scale, rest_scale), half).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	await tw.finished
 
+## A thin outline with no halo, for cards in a heap (the deck), so each card's edge shows.
+func set_outline(border_width: int, halo: int) -> void:
+	if _frame_style == null:
+		return
+	_frame_style.set_border_width_all(border_width)
+	_glow_style.shadow_size = halo
+
 ## Light the neon frame. Pass alpha 0 to turn it off.
 func glow(color: Color, duration: float = 0.2) -> void:
 	if _frame_style == null:

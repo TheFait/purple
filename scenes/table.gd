@@ -62,11 +62,13 @@ func _build_deck() -> void:
 		var under := _back_card(DECK_TINT * (1.0 - 0.09 * k))
 		under.rotation += (0.012 if k % 2 == 0 else -0.01) * k * 0.6
 		add_child(under)
-		under.glow(NeonTheme.PURPLE, 0.0)
+		under.set_outline(1, 0)
+		under.glow(NeonTheme.PURPLE.darkened(0.25), 0.0)
 		_under[k - 1] = under
 	_pile = _back_card(DECK_TINT)
 	add_child(_pile)
-	_pile.glow(NeonTheme.PURPLE, 0.0)
+	_pile.set_outline(1, 0)
+	_pile.glow(NeonTheme.PURPLE.darkened(0.25), 0.0)
 
 ## A card back lying landscape (turned a quarter turn about its centre), at the stack's size.
 func _back_card(tint: Color) -> Card:
@@ -240,30 +242,56 @@ func _tremble(t: float, card: Card) -> void:
 	card.rotation = sin(t * 60.0) * 0.012 * (1.0 + t * 3.0)
 	card.position = _reveal_pos() - Card.CARD_SIZE * 0.5 + Vector2(randf_range(-amp, amp), randf_range(-amp, amp))
 
-## Post doubling: ghostly copies of the stack fan out in the middle of the screen.
-## They count toward the pool but are not real cards, so they are tinted differently.
+## Post doubling: ghostly copies of the stack burst out of the middle of the screen at
+## every angle, spinning, then fade away. They only count toward the pool; they are not
+## real cards, so they leave no trace on the table. Awaitable.
 func add_phantoms(datas: Array) -> void:
+	var origin := _reveal_pos()
+	var ghosts: Array[Card] = []
 	var tw := create_tween().set_parallel(true)
-	for data: CardData in datas:
-		var ghost := make_card(data)
+	var count := datas.size()
+	var spin_offset := randf() * TAU
+	for i in count:
+		var ghost := make_card(datas[i] as CardData)
 		ghost.is_facedown = false
 		add_child(ghost)
-		move_child(ghost, 0)
-		ghost.set_meta("phantom", true)
-		_pool.insert(0, ghost)
-		_set_center(ghost, _reveal_pos())
-		ghost.scale = Vector2.ONE * REVEAL_ZOOM * 0.6
+		ghosts.append(ghost)
+		_set_center(ghost, origin)
+		ghost.scale = Vector2.ONE * REVEAL_ZOOM * 0.45
 		ghost.modulate = Color(0.55, 0.95, 1.0, 0.0)
-		ghost.glow(NeonTheme.CYAN, 0.2)
-		var jitter := Vector2(randf_range(-140, 140), randf_range(-90, 90))
-		tw.tween_property(ghost, "position", _reveal_pos() - Card.CARD_SIZE * 0.5 + jitter, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(ghost, "rotation", randf_range(-0.5, 0.5), 0.45)
-		tw.tween_property(ghost, "modulate:a", 0.65, 0.45)
+		ghost.glow(NeonTheme.CYAN, 0.1)
+		# Evenly spread directions with a little jitter, so they fan out in every direction.
+		var angle := spin_offset + TAU * i / maxi(count, 1) + randf_range(-0.25, 0.25)
+		var target := origin + Vector2.from_angle(angle) * randf_range(260.0, 620.0)
+		tw.tween_property(ghost, "position", target - Card.CARD_SIZE * 0.5, 0.55).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ghost, "rotation", randf_range(-3.5, 3.5), 0.9).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ghost, "scale", Vector2.ONE * REVEAL_ZOOM * 0.8, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ghost, "modulate:a", 0.9, 0.12)
+		tw.tween_property(ghost, "modulate:a", 0.0, 0.45).set_delay(0.5)
 	Sfx.play("shuffle", 1.3)
-	while _pool.size() > MAX_POOL_VISIBLE:
-		var gone: Card = _pool.pop_front()
-		gone.queue_free()
 	await tw.finished
+	for ghost in ghosts:
+		ghost.queue_free()
+
+# --- restoring a snapshot ---------------------------------------------------
+
+## Put `datas` (oldest first, phantoms included) on the table instantly, as it would look
+## at rest. Used when a client joins a table that is already in play.
+func restore(datas: Array) -> void:
+	clear_now()
+	var real: Array[CardData] = []
+	for data: CardData in datas:
+		if not data.phantom:   # phantoms are a passing effect, not something that rests on the table
+			real.append(data)
+	for i in real.size():
+		var card := make_card(real[i])
+		card.is_facedown = false
+		add_child(card)
+		if i == real.size() - 1:
+			_active = card
+		else:
+			_pool.append(card)
+	_layout_rest(0.0)
 
 # --- the stack at rest -------------------------------------------------------
 

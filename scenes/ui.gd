@@ -52,7 +52,8 @@ const PLAYER_DOT_ACTIVE := 62.0
 const LONG_PRESS := 0.45      # seconds to hold a button before its tooltip appears (touch)
 const FAST_FORWARD_CARDS := 3   # when more card reveals than this are waiting, skip the drama
 
-@onready var presenter: Node = get_parent()
+## The offline GameManager when this UI sits under one; otherwise the online client (Net).
+@onready var presenter: Node = _pick_presenter()
 
 @onready var root: Control = $Root
 @onready var table: Table = $Root/Table
@@ -69,6 +70,7 @@ var fx: ScreenFx
 var _queue: Array[Dictionary] = []
 var _running: bool = false
 var _start_pending: bool = false
+var _active_seat: int = 0
 var _turn_announced: bool = false  # false until the opening turn has played
 var _lost_round: bool = false    # the table clear that follows a penalty is the chaotic one
 var _streak_shown: int = 0
@@ -86,6 +88,10 @@ var _tip_label: Label
 var _hold_id: int = 0                # bumped on every press / release so stale hold timers are ignored
 var _long_pressed: bool = false      # the press that just ended showed a tooltip, so it is not a guess
 
+func _pick_presenter() -> Node:
+	var parent := get_parent()
+	return parent if parent.has_method("act_move") else Net
+
 func _ready() -> void:
 	root.theme = NeonTheme.build()
 	_style_labels()
@@ -96,7 +102,7 @@ func _ready() -> void:
 	fx = ScreenFx.new()
 	add_child(fx)
 	var shake_layers: Array[CanvasLayer] = [self]
-	var bg := presenter.get_node_or_null("Background") as CanvasLayer
+	var bg := get_parent().get_node_or_null("Background") as CanvasLayer
 	if bg:
 		shake_layers.append(bg)
 		var backdrop := bg.get_node_or_null("Backdrop") as ColorRect
@@ -112,6 +118,10 @@ func _ready() -> void:
 	presenter.penalty_triggered.connect(func(seat: int, amt: int): _enqueue("penalty", [seat, amt]))
 	presenter.pass_available.connect(func(on: bool): _enqueue("pass", [on]))
 	presenter.turn_changed.connect(func(seat: int): _enqueue("turn", [seat]))
+	presenter.table_restored.connect(func(cs: Array): _enqueue("restore", [cs]))
+	presenter.seats_changed.connect(func(count: int, current: int): _enqueue("seats", [count, current]))
+	presenter.player_left.connect(func(who: String): _enqueue("left", [who]))
+	presenter.stack_passed.connect(func(from: int, to: int, n: int): _enqueue("passed", [from, to, n]))
 	presenter.phantoms_added.connect(func(cs: Array): _enqueue("phantoms", [cs]))
 	presenter.diamonds_forever.connect(func(): _enqueue("diamonds"))
 	presenter.round_log.connect(func(t: String): _enqueue("log", [t]))
@@ -120,6 +130,9 @@ func _ready() -> void:
 		var b: Button = _move_buttons[button_name]
 		b.pressed.connect(_select.bind(MOVE_BUTTONS[button_name]))
 	$Root/PassPanel/VBox/PassButtons/PassButton.pressed.connect(_on_pass_pressed)
+	# An online table already exists by the time this UI appears: ask the server for it.
+	if presenter.has_method("request_sync"):
+		presenter.request_sync()
 
 # --- styling ---------------------------------------------------------------
 
@@ -451,6 +464,10 @@ func _play(kind: String, args: Array) -> void:
 		"streak": await _on_streak(args[0])
 		"penalty": await _on_penalty(args[0], args[1])
 		"clear": await _on_clear()
+		"restore": _on_restore(args[0])
+		"seats": _on_seats(args[1])
+		"left": await _on_left(args[0])
+		"passed": await _on_passed(args[0], args[1], args[2])
 		"phantoms": await _on_phantoms(args[0])
 		"diamonds": await _on_diamonds()
 		"pass": _on_pass_available(args[0])
@@ -587,7 +604,11 @@ func _on_penalty(seat: int, amount: int) -> void:
 	_pulse_backdrop(1.0)
 	pool_label.modulate = Color(1, 0.3, 0.3)
 	fx.confetti(table.global_center(), 60 + 8 * mini(amount, 10), CONFETTI_LOSE, 1.5)
-	await fx.slam_text("SEAT %d\nDRINK %d!" % [seat + 1, amount], NeonTheme.RED, 92, 0.8, NeonTheme.FONT_HEAD)
+	var who: String = presenter.player_name(seat)
+	# A long name gets a smaller slam so it still fits on one line.
+	var size := 92 if who.length() <= 8 else (72 if who.length() <= 12 else 56)
+	await fx.slam_text("%s,
+DRINK %d!" % [who, amount], NeonTheme.RED, size, 0.8, NeonTheme.FONT_HEAD)
 	pool_label.modulate = Color.WHITE
 	fx.set_vignette(0.25, 0.4)
 
@@ -597,8 +618,24 @@ func _on_clear() -> void:
 	await table.sweep(chaotic)
 	await _wait(0.15)
 
+## Someone joined or left, so the turn order may have shifted: redraw the players row.
+func _on_seats(current: int) -> void:
+	_active_seat = current
+	_show_players(current)
+
+func _on_left(who: String) -> void:
+	Sfx.play("lose", 0.8)
+	await fx.slam_text("%s has disconnected" % who, NeonTheme.GOLD, 64, 1.1, NeonTheme.FONT_HEAD)
+
+## A snapshot of the table (joined late or reloaded): put the stack down without any show.
+func _on_restore(cards: Array) -> void:
+	table.restore(cards)
+
 func _on_phantoms(cards: Array) -> void:
-	fx.slam_text("PHANTOM STACK!", NeonTheme.CYAN, 72, 0.5, NeonTheme.FONT_HEAD)
+	Sfx.play("streak")
+	Sfx.vibrate(120)
+	fx.flash(NeonTheme.CYAN, 0.35, 0.3)
+	await fx.slam_text("POSTED.", NeonTheme.CYAN, 128, 0.7, NeonTheme.FONT_HEAD)
 	await table.add_phantoms(cards)
 	await _wait(0.2)
 
@@ -623,18 +660,34 @@ func _on_pass_available(on: bool) -> void:
 	_refresh_buttons()
 
 func _on_turn(seat: int) -> void:
+	_active_seat = seat
 	_show_players(seat)
 	_punch(_player_dots[seat], 1.3)
 	Sfx.play("turn")
-	# A loss keeps the same seat, so after the opening turn every turn change is the stack
-	# being passed on (or a player leaving): announce who is up.
-	if _turn_announced:
+	# A loss keeps the same seat, so after the opening turn a turn change is the stack being
+	# passed on (announced by its own "passed" event) or a player leaving: announce who is up.
+	if _turn_announced and not _pass_queued():
 		var color: Color = SEAT_COLORS[seat % SEAT_COLORS.size()]
-		await fx.slam_text("PLAYER %d,
-YOU'RE UP!" % (seat + 1), color, 80, 0.7, NeonTheme.FONT_HEAD)
+		await fx.slam_text("%s,\nyou're up!" % presenter.player_name(seat), color, 80, 0.7, NeonTheme.FONT_HEAD)
 	else:
 		await _wait(0.25)
 	_turn_announced = true
+
+func _pass_queued() -> bool:
+	for ev in _queue:
+		if ev.kind == "passed":
+			return true
+	return false
+
+## The stack changed hands. The player who passed sees where it went; everyone else is told
+## who is up (on a shared hotseat screen the device holder is the one who passed).
+func _on_passed(from_seat: int, to_seat: int, count: int) -> void:
+	var color: Color = SEAT_COLORS[to_seat % SEAT_COLORS.size()]
+	var who: String = presenter.player_name(to_seat)
+	if presenter.is_hotseat() or from_seat == presenter.local_seat():
+		await fx.slam_text("Passed stack of %d to %s" % [count, who], color, 56, 1.0, NeonTheme.FONT_HEAD)
+	else:
+		await fx.slam_text("%s,\nyou're up!" % who, color, 80, 0.8, NeonTheme.FONT_HEAD)
 
 ## One circle per player in seat colours; the player whose turn it is gets the big one.
 func _show_players(active: int) -> void:
@@ -655,6 +708,9 @@ func _show_players(active: int) -> void:
 		players_row.add_child(dot)
 		_player_dots.append(dot)
 		dot.custom_minimum_size = Vector2(PLAYER_DOT, PLAYER_DOT)
+	# Someone left: drop the extra dots (the row must never show more players than there are).
+	while _player_dots.size() > count:
+		_player_dots.pop_back().queue_free()
 	for seat in _player_dots.size():
 		var dot := _player_dots[seat]
 		var color: Color = SEAT_COLORS[seat % SEAT_COLORS.size()]
