@@ -87,3 +87,22 @@ if grep -q "RESULT: PASS" /tmp/pp_passer.log && grep -q "RESULT: PASS" /tmp/pp_o
 else
   echo "PASS-NOTICE: FAIL"
 fi
+
+echo "--- lobby: private room, invite code, host rules, throttle ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server7.log 2>&1 &
+SERVER7=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_lobby.gd -- host >/tmp/pp_lhost.log 2>&1 &
+LHOST=$!
+sleep 1
+godot --headless --path . --script res://tests/net_client_lobby.gd -- guest >/tmp/pp_lguest.log 2>&1 &
+LGUEST=$!
+godot --headless --path . --script res://tests/net_client_lobby.gd -- intruder >/tmp/pp_lintr.log 2>&1
+wait "$LHOST" "$LGUEST"
+kill "$SERVER7" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_lhost.log /tmp/pp_lguest.log /tmp/pp_lintr.log
+if grep -q "RESULT: PASS" /tmp/pp_lhost.log && grep -q "RESULT: PASS" /tmp/pp_lguest.log && grep -q "RESULT: PASS" /tmp/pp_lintr.log; then
+  echo "LOBBY: PASS"
+else
+  echo "LOBBY: FAIL"
+fi

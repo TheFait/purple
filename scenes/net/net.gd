@@ -6,12 +6,19 @@ const DEFAULT_PORT := 9000
 const ROOM_MANAGER := preload("res://server/room_manager.gd")
 const GAME_ENGINE  := preload("res://scenes/engine/game_engine.gd")
 const DECK_ENGINE  := preload("res://scenes/engine/deck_engine.gd")
+const JOIN_THROTTLE := preload("res://server/join_throttle.gd")
+const MAX_ROOMS := 200
+const ROOM_NAME_MAX := 24
 const DB_PATH         := "res://assets/database/card_database.json"
 const COLLECTION_PATH := "res://assets/database/card_collection.json"
 
 # Client-facing signals
 signal connected()
 signal connect_failed()
+signal connection_lost()                 # the server went away after we had connected
+signal lobby_changed(info: Dictionary)   # who is in the room, who hosts, and whether a game is running
+signal left_room()
+signal notice(text: String)              # a refusal worth showing ("only the host can start")
 signal seated(seat: int, room_name: String)
 signal join_failed(reason: String)
 signal public_rooms(list: Array)
@@ -33,7 +40,14 @@ signal diamonds_forever()
 signal round_log(text: String)
 
 var _rooms: RoomManager      # server only
-var _auto_room: Room         # server only — the iteration-1 default public room
+var _auto_room: Room         # server only — the always-open public table
+var _throttle: JoinThrottle  # server only — slows down join-code guessing
+
+## Server only, set before start_server: start the open table's game as soon as someone sits
+## down (the lobby is skipped). The automated tests use this; a real server leaves it off.
+var auto_start_open_table: bool = false
+
+var room_info: Dictionary = {}   # client only — the last lobby info the server sent
 
 var _my_seat: int = -1           # client only
 var _current_turn_seat: int = 0  # client only (mirror of server turn)
@@ -48,7 +62,9 @@ func start_server(port: int) -> void:
 	multiplayer.multiplayer_peer = peer
 	_rooms = ROOM_MANAGER.new()
 	add_child(_rooms)
-	_auto_room = _rooms.create_room("Auto Public Room", true)
+	_auto_room = _rooms.create_room("Open Table", true, true)
+	_auto_room.auto_start = auto_start_open_table
+	_throttle = JOIN_THROTTLE.new()
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 ## Connect to a server. Returns false (and emits connect_failed) when the address is unusable.
@@ -63,6 +79,7 @@ func start_client(ip: String, port: int) -> bool:
 	if not multiplayer.connected_to_server.is_connected(_on_connected):
 		multiplayer.connected_to_server.connect(_on_connected)
 		multiplayer.connection_failed.connect(_on_connection_failed)
+		multiplayer.server_disconnected.connect(_on_server_disconnected)
 	return true
 
 ## Drop the current connection (used before retrying, or when leaving an online game).
@@ -75,6 +92,7 @@ func stop_client() -> void:
 	_stack_size = 0
 	_seat_count = 0
 	_names = []
+	room_info = {}
 
 func _on_connected() -> void:
 	connected.emit()
@@ -82,15 +100,56 @@ func _on_connected() -> void:
 func _on_connection_failed() -> void:
 	connect_failed.emit()
 
-# ---- client helper (sends to server via RPC) ----
+func _on_server_disconnected() -> void:
+	stop_client()
+	connection_lost.emit()
+
+## Forget the table (a lobby, a left room, a lost connection): its mirrors are stale.
+func _reset_table_mirrors() -> void:
+	_current_turn_seat = 0
+	_stack_size = 0
+	_seat_count = 0
+	_names = []
+
+# ---- client helpers (send to the server) ----
+
+## True while connected to a server. (With no connection Godot still reports its built-in
+## offline peer as "connected", so that one does not count.)
+func is_online() -> bool:
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer:
+		return false
+	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 func join_room(room_or_code: String, player_name: String) -> void:
 	rpc_id(1, "rpc_join_room", room_or_code, player_name)
+
+## Make a room and sit in it as its host. Public rooms show in the browser; private ones
+## are joined with the invite code the lobby info carries.
+func create_room(room_name: String, is_public: bool, player_name: String) -> void:
+	rpc_id(1, "rpc_create_room", room_name, is_public, player_name)
+
+func list_public_rooms() -> void:
+	rpc_id(1, "rpc_list_public_rooms")
+
+func leave_room() -> void:
+	rpc_id(1, "rpc_leave_room")
+
+## Host only: start the game once enough players are in.
+func request_start() -> void:
+	rpc_id(1, "rpc_start_game")
+
+## Host only: stop the game and take everyone back to the lobby.
+func request_end() -> void:
+	rpc_id(1, "rpc_end_game")
 
 ## Ask the server for the table as it stands now. A UI that appears after the game began
 ## (or after the scene changed) calls this to catch up; the reply replays as events.
 func request_sync() -> void:
 	rpc_id(1, "rpc_request_sync")
+
+func is_host() -> bool:
+	return _my_seat >= 0 and int(room_info.get("host", -1)) == _my_seat
 
 # ---- client -> server ----
 
@@ -99,14 +158,74 @@ func rpc_join_room(room_or_code: String, player_name: String) -> void:
 	if not multiplayer.is_server():
 		return
 	var sender := multiplayer.get_remote_sender_id()
-	# Iteration 1: "auto" routes to the default public room.
-	var target := _auto_room.id if room_or_code == "auto" else room_or_code
+	var now := Time.get_ticks_msec()
+	if _rooms.room_of(sender) != null:
+		rpc_id(sender, "_client_join_failed", "already in a room")
+		return
+	if _throttle.blocked(sender, now):
+		rpc_id(sender, "_client_join_failed", "too many wrong codes, try again in %d seconds" % _throttle.seconds_left(sender, now))
+		return
+	# "auto" is the always-open public table.
+	var target := _auto_room.id if room_or_code.strip_edges() == "auto" else room_or_code
 	var room := _rooms.join(sender, target, player_name)
 	if room == null:
+		_throttle.record_failure(sender, now)
 		rpc_id(sender, "_client_join_failed", "room full or not found")
 		return
-	rpc_id(sender, "_client_seated", room.seat_of(sender), room.room_name)
-	_ensure_engine(room)
+	if room.state == Room.State.LOBBY and room.auto_start:
+		_start_game(room)
+	elif room.state == Room.State.PLAYING:
+		_grow_engine(room)   # joining a running game: take the last seat
+	_announce_room(room)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_create_room(room_name: String, is_public: bool, player_name: String) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if _rooms.room_of(sender) != null:
+		rpc_id(sender, "_client_join_failed", "already in a room")
+		return
+	if _rooms.room_count() >= MAX_ROOMS:
+		rpc_id(sender, "_client_join_failed", "the server is full, try again later")
+		return
+	var clean_name := Room.clean_text(room_name).left(ROOM_NAME_MAX).strip_edges()
+	var room := _rooms.create_room(clean_name if not clean_name.is_empty() else "Table", is_public)
+	_rooms.seat_player(room, sender, player_name)
+	if clean_name.is_empty():
+		room.room_name = "%s's table" % room.name_of(sender)
+	_announce_room(room)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_leave_room() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	_remove_player(sender)
+	rpc_id(sender, "_client_left_room")
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_start_game() -> void:
+	if not multiplayer.is_server():
+		return
+	var room := _host_room(multiplayer.get_remote_sender_id(), "Only the host can start the game.")
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	if not room.can_start():
+		rpc_id(room.host_peer, "_client_notice", "Need at least %d players to start." % Room.MIN_PLAYERS)
+		return
+	_start_game(room)
+	_announce_room(room)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_end_game() -> void:
+	if not multiplayer.is_server():
+		return
+	var room := _host_room(multiplayer.get_remote_sender_id(), "Only the host can end the game.")
+	if room == null or room.state != Room.State.PLAYING:
+		return
+	_end_game(room)
+	_announce_room(room)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_sync() -> void:
@@ -117,16 +236,6 @@ func rpc_request_sync() -> void:
 	if room == null or not room.has_meta("engine"):
 		return
 	rpc_id(sender, "_client_events", _snapshot(room))
-
-@rpc("any_peer", "call_remote", "reliable")
-func rpc_create_room(name: String, is_public: bool) -> void:
-	if not multiplayer.is_server():
-		return
-	var sender := multiplayer.get_remote_sender_id()
-	var room := _rooms.create_room(name, is_public)
-	_rooms.join(sender, room.id, "Host")
-	rpc_id(sender, "_client_seated", room.seat_of(sender), room.room_name)
-	_ensure_engine(room)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_list_public_rooms() -> void:
@@ -150,17 +259,63 @@ func _client_join_failed(reason: String) -> void:
 func _client_public_rooms(list: Array) -> void:
 	public_rooms.emit(list)
 
+@rpc("authority", "call_remote", "reliable")
+func _client_lobby(info: Dictionary) -> void:
+	room_info = info
+	if info.get("state", "") == "lobby":
+		_reset_table_mirrors()
+	lobby_changed.emit(info)
+
+@rpc("authority", "call_remote", "reliable")
+func _client_left_room() -> void:
+	room_info = {}
+	_my_seat = -1
+	_reset_table_mirrors()
+	left_room.emit()
+
+@rpc("authority", "call_remote", "reliable")
+func _client_notice(text: String) -> void:
+	notice.emit(text)
+
 # ---- server internals ----
 
-func _ensure_engine(room: Room) -> void:
-	# Iteration-1 behavior: create engine on first join, then expand seat_count
-	# as more players join so turn rotation stays live.
+## The room's roster went out of date (join, leave, new host, game started or ended):
+## re-send every player their own seat and the room's roster to everybody.
+func _announce_room(room: Room) -> void:
+	for pid: int in room.peer_ids():
+		rpc_id(pid, "_client_seated", room.seat_of(pid), room.room_name)
+	_broadcast(room, "_client_lobby", [room.lobby_info()])
+
+## The host's room, or null (with a notice to the sender) when they are not its host.
+func _host_room(sender: int, refusal: String) -> Room:
+	var room := _rooms.room_of(sender)
+	if room == null:
+		return null
+	if room.host_peer != sender:
+		rpc_id(sender, "_client_notice", refusal)
+		return null
+	return room
+
+## Someone sat down in a game that is already running: they take the last seat.
+func _grow_engine(room: Room) -> void:
+	var engine: GameEngine = room.get_meta("engine")
+	engine.seat_count = room.player_count()
+	_queue_event(room, "seats", _seats_args(room, engine))
+	_flush_events(room)
+
+## Stop the game and go back to the lobby (the players stay in the room).
+func _end_game(room: Room) -> void:
 	if room.has_meta("engine"):
-		var existing: GameEngine = room.get_meta("engine")
-		existing.seat_count = room.player_count()
-		_queue_event(room, "seats", _seats_args(room, existing))
-		_flush_events(room)
-		return
+		var old: GameEngine = room.get_meta("engine")
+		room.remove_meta("engine")
+		old.queue_free()
+	room.set_meta("events", [])
+	room.state = Room.State.LOBBY
+
+## Deal a new game to everyone in the room: one engine with a seat per player.
+func _start_game(room: Room) -> void:
+	room.state = Room.State.PLAYING
+	room.set_meta("events", [])
 	var deck := DECK_ENGINE.new()
 	deck.load_from_json(DB_PATH, COLLECTION_PATH)
 	var engine: GameEngine = GAME_ENGINE.new()
@@ -224,29 +379,35 @@ func _broadcast(room: Room, method: String, args: Array = []) -> void:
 		callv("rpc_id", [pid, method] + args)
 
 func _on_peer_disconnected(peer_id: int) -> void:
+	_remove_player(peer_id)
+
+## A player is gone (disconnected or left on purpose): free their seat, tell the table who
+## left, close the gap in the turn order, and pass the host role on if it was theirs.
+func _remove_player(peer_id: int) -> void:
 	if _rooms == null:
 		return
+	_throttle.forget(peer_id)
 	var old_room: Room = _rooms.room_of(peer_id)
-	var seat := old_room.seat_of(peer_id) if old_room != null else -1
-	var leaver_name := old_room.name_of(peer_id) if old_room != null else ""
+	if old_room == null:
+		return
+	var seat := old_room.seat_of(peer_id)
+	var leaver_name := old_room.name_of(peer_id)
 	var room: Room = _rooms.leave(peer_id)
-	# room is null when it was already empty and freed, or peer was unknown.
-	# When still occupied and has a running engine, reconcile seat count and
-	# turn so the engine never references a vacated seat index.
-	if room == null or room.player_count() == 0:
+	if room == null:
 		return
-	if not room.has_meta("engine"):
+	if room.player_count() == 0:
+		if room.persistent:
+			_end_game(room)   # the always-open table starts fresh for the next visitors
 		return
-	var engine: GameEngine = room.get_meta("engine")
-	# Tell the table who left first, then close the gap in the turn order.
-	_queue_event(room, "left", [leaver_name])
-	engine.remove_seat(seat)
-	_queue_event(room, "seats", _seats_args(room, engine))
-	_flush_events(room)
-	# Re-broadcast each remaining peer's seat so cached _my_seat stays valid
-	# after remove_seat re-packed the indices.
-	for pid: int in room.peer_ids():
-		rpc_id(pid, "_client_seated", room.seat_of(pid), room.room_name)
+	if room.state == Room.State.PLAYING and room.has_meta("engine"):
+		var engine: GameEngine = room.get_meta("engine")
+		# Tell the table who left first, then close the gap in the turn order.
+		_queue_event(room, "left", [leaver_name])
+		engine.remove_seat(seat)
+		_queue_event(room, "seats", _seats_args(room, engine))
+		_flush_events(room)
+	# Everyone's seat number and the roster (and maybe the host) changed.
+	_announce_room(room)
 
 # ---- server game RPCs (move/pass/ride) ----
 
