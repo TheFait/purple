@@ -51,13 +51,13 @@ start screen -> Play menu -> [Offline hotseat]            -> game (GameManager)
 - [x] Verified: a windowed client joined a real server, received the snapshot, sent a guess and got the card and penalty back. Still to do by hand: two real windows playing a full game.
 
 ### 2B. Lobby, invite codes, names
-- [ ] `Room.state`, `Room.host_peer`, names in the roster, host-only `rpc_start_game` / `rpc_end_game`, minimum-player check.
-- [ ] Engine created at start with the final seat count; no `seat_count` changes from joins.
-- [ ] Names: typed once and saved on the device (`user://`), duplicates get a number suffix.
-- [ ] RPCs: `rpc_create_room(name, is_public)` replies with room info and code; `rpc_join_room(code_or_id, name)`; `rpc_leave_room`; `_client_roster` broadcast on every change.
-- [ ] Join-code throttling and name sanitising.
-- [ ] Screens: Play menu, Host (shows the code and a copy/share button), Join (code entry), public room list, lobby (roster, Start for the host).
-- [ ] Tests: `test_room_manager.gd` for states, host rules, throttling; integration test with 3 clients through create, join by code, start.
+- [x] `Room.state`, `Room.host_peer`, names in the roster, host-only `rpc_start_game` / `rpc_end_game`, minimum-player check.
+- [x] Engine created at start with the final seat count; no `seat_count` changes from joins.
+- [x] Names: typed once and saved on the device (`user://`), duplicates get a number suffix.
+- [x] RPCs: `rpc_create_room(name, is_public)` replies with room info and code; `rpc_join_room(code_or_id, name)`; `rpc_leave_room`; `_client_lobby` roster broadcast on every change.
+- [x] Join-code throttling and name sanitising.
+- [x] Screens: Play menu, Host (shows the code and a copy/share button), Join (code entry), public room list, lobby (roster, Start for the host).
+- [x] Tests: `test_room_manager.gd` for states, host rules, throttling; integration test with 3 clients through create, join by code, start.
 
 ### 2C. Late join, reconnect, disconnect handling
 - [ ] `_client_snapshot`; a mid-game joiner is seated at the end of the turn order (decision 2), so the engine must be able to grow `seat_count` without disturbing the current seat or stack.

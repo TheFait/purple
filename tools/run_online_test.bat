@@ -1,6 +1,8 @@
 @echo off
 rem Starts the dedicated server and two game windows so you can try online play by hand.
-rem In each window press PLAY ONLINE (the address defaults to 127.0.0.1).
+rem In the first window press PLAY ONLINE, type a name, HOST A GAME, CREATE TABLE and read the
+rem invite code. In the second press PLAY ONLINE, type another name, JOIN WITH CODE and enter it.
+rem (The server address already says 127.0.0.1.) The host presses START GAME once both are in.
 rem
 rem Godot is looked for in GODOT_DIR. Set that variable first to use a different install:
 rem     set GODOT_DIR=C:\Tools\Godot_v4.6
