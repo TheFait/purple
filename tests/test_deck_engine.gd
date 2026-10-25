@@ -17,6 +17,15 @@ func _initialize() -> void:
 	t.eq(d.discard_size(), 0, "recycle empties discard")
 	t.eq(d.deck_size(), 52, "recycle returns card to deck")
 
+	# The draw-order peek used by the hidden-deck test matches what is actually drawn.
+	var peek := d.names_in_draw_order()
+	t.eq(peek.size(), 52, "the peek lists the whole deck")
+	var drawn_a := d.draw()
+	t.eq(drawn_a.nice_name, peek[0], "the first card drawn is the first one the peek lists")
+	var drawn_b := d.draw()
+	t.eq(drawn_b.nice_name, peek[1], "and so on in order")
+	d.return_to_deck([drawn_a, drawn_b])   # put them back for the full-draw check below
+
 	# Draw the whole deck; no duplicates by nice_name.
 	var seen := {}
 	var dupes := 0

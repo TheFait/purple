@@ -125,3 +125,39 @@ for MODE in resume turnskip; do
     echo "HOLD-$MODE: FAIL"
   fi
 done
+
+echo "--- the server never reveals an undrawn card ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server9.log 2>&1 &
+SERVER9=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_hidden.gd >/tmp/pp_hidden.log 2>&1
+kill "$SERVER9" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_hidden.log
+grep -q "RESULT: PASS" /tmp/pp_hidden.log && echo "HIDDEN-DECK: PASS" || echo "HIDDEN-DECK: FAIL"
+
+echo "--- idle players are skipped, then removed ---"
+godot --headless --path . --script res://tests/net_server_boot.gd -- idle >/tmp/pp_server10.log 2>&1 &
+SERVER10=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_idle.gd -- first >/tmp/pp_idle1.log 2>&1 &
+IDLE1=$!
+sleep 1
+godot --headless --path . --script res://tests/net_client_idle.gd -- second >/tmp/pp_idle2.log 2>&1 &
+IDLE2=$!
+wait "$IDLE1" "$IDLE2"
+kill "$SERVER10" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_idle1.log /tmp/pp_idle2.log
+if grep -q "RESULT: PASS" /tmp/pp_idle1.log && grep -q "RESULT: PASS" /tmp/pp_idle2.log; then
+  echo "IDLE: PASS"
+else
+  echo "IDLE: FAIL"
+fi
+
+echo "--- a restarted app rejoins from its saved session ---"
+godot --headless --path . --script res://tests/net_server_boot.gd >/tmp/pp_server11.log 2>&1 &
+SERVER11=$!
+sleep 2
+godot --headless --path . --script res://tests/net_client_cold.gd >/tmp/pp_cold.log 2>&1
+kill "$SERVER11" 2>/dev/null
+grep -E "OK:|FAIL:|RESULT" /tmp/pp_cold.log
+grep -q "RESULT: PASS" /tmp/pp_cold.log && echo "COLD-REJOIN: PASS" || echo "COLD-REJOIN: FAIL"

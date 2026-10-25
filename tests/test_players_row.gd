@@ -44,6 +44,26 @@ func _process(_d: float) -> bool:
 	t.eq(ui._player_dots[1].modulate, Color.WHITE, "and the dot goes back to normal")
 	t.check(not ui._away_tweens.has(ui._player_dots[1]), "with no pulse left")
 
+	# Who is up and what they hold, and the idle countdown.
+	engine.seat_count = 2
+	ui._show_players(0)
+	ui._active_seat = 0
+	ui._pool_shown = 0
+	ui._refresh_holder()
+	t.eq(ui._holder_label.text, "Player 1 to guess", "an empty stack says who guesses")
+	ui._pool_shown = 3
+	ui._refresh_holder()
+	t.eq(ui._holder_label.text, "Player 1 is holding the stack of 3 cards", "a stack names who holds it")
+	ui._pool_shown = 1
+	ui._refresh_holder()
+	t.eq(ui._holder_label.text, "Player 1 is holding the stack of 1 card", "one card is singular")
+	ui._on_idle_warning(0, 8, 0)
+	t.eq(ui._holder_label.text, "Player 1 will be skipped in 0:08", "an idle warning counts down to a skip")
+	ui._on_idle_warning(0, 5, 2)
+	t.eq(ui._holder_label.text, "Player 1 will be REMOVED in 0:05", "the third strike warns of removal")
+	ui._on_idle_warning(-1, -1, 0)
+	t.eq(ui._holder_label.text, "Player 1 is holding the stack of 1 card", "clearing the warning restores the normal text")
+
 	t.eq(_game.player_name(1), "Player 2", "hotseat players are named by seat")
 	t.check(_game.is_hotseat(), "offline play is hotseat")
 	t.finish()

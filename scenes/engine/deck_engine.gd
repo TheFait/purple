@@ -39,6 +39,14 @@ func deck_size() -> int:
 func discard_size() -> int:
 	return _discard.size()
 
+## The names of the cards still in the deck, in the order they will be drawn. Only for tests
+## that check the server never reveals a card early; nothing in the game sends this anywhere.
+func names_in_draw_order() -> Array:
+	var names: Array = []
+	for i in range(_deck.size() - 1, -1, -1):
+		names.append(_deck[i].nice_name)
+	return names
+
 func draw() -> CardData:
 	if _deck.is_empty():
 		recycle()

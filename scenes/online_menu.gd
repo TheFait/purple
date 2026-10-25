@@ -9,6 +9,7 @@ var _address_edit: LineEdit
 var _code_edit: LineEdit
 var _public_check: CheckButton
 var _rooms_box: VBoxContainer
+var _rejoin_button: Button
 var _modes: Dictionary = {}          # mode name -> the controls shown in that mode
 var _buttons: Array[Button] = []     # disabled while a connection attempt is running
 var _connecting := false
@@ -30,6 +31,7 @@ func _ready() -> void:
 	add_status(box)
 	_show_mode("menu")
 
+	Net.session_expired.connect(_on_session_expired)
 	Net.lobby_changed.connect(_on_lobby_changed)
 	Net.join_failed.connect(_on_join_failed)
 	Net.public_rooms.connect(_on_public_rooms)
@@ -44,6 +46,10 @@ func _ready() -> void:
 func _build_menu_mode(box: VBoxContainer) -> void:
 	var m := VBoxContainer.new()
 	m.add_theme_constant_override("separation", 12)
+	# A game that was running when the app last closed can be rejoined while its seat is held.
+	_rejoin_button = _button("REJOIN YOUR GAME", NeonTheme.GOLD, _rejoin)
+	_rejoin_button.visible = OnlineSettings.has_session()
+	m.add_child(_rejoin_button)
 	m.add_child(_button("HOST A GAME", NeonTheme.PINK, _show_mode.bind("host")))
 	m.add_child(_button("JOIN WITH CODE", NeonTheme.CYAN, _show_mode.bind("join")))
 	m.add_child(_button("PUBLIC ROOMS", NeonTheme.GREEN, _open_public))
@@ -130,6 +136,19 @@ func _open_public() -> void:
 func _join_public(room_id: String) -> void:
 	var player := _clean_name()
 	_run_online(func(): Net.join_room(room_id, player))
+
+func _rejoin() -> void:
+	_set_busy(true)
+	set_status("Rejoining your game...")
+	if not Net.resume_saved():
+		_set_busy(false)
+		_rejoin_button.visible = false
+		set_status("There is no game to rejoin.", NeonTheme.RED)
+
+func _on_session_expired() -> void:
+	_set_busy(false)
+	_rejoin_button.visible = false
+	set_status("That game has moved on without you.", NeonTheme.GOLD)
 
 func _back_to_start() -> void:
 	Net.stop_client()

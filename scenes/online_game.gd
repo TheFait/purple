@@ -56,6 +56,7 @@ func _ready() -> void:
 	Net.reconnecting.connect(_on_reconnecting)
 	Net.resumed.connect(func(): _recon.visible = false)
 	Net.session_expired.connect(_on_session_expired)
+	Net.kicked.connect(_on_kicked)
 	Net.lobby_changed.connect(_on_lobby_changed)
 	Net.left_room.connect(func(): get_tree().change_scene_to_file(OnlineScreen.SCENE_MENU))
 	Net.connection_lost.connect(func():
@@ -102,6 +103,13 @@ func _on_reconnecting(seconds_left: int) -> void:
 	_recon_title.text = "RECONNECTING..."
 	_recon_time.text = "%d:%02d left to get your seat back" % [seconds_left / 60, seconds_left % 60]
 	_recon_button.visible = false
+
+func _on_kicked() -> void:
+	_overlay.visible = false
+	_recon.visible = true
+	_recon_title.text = "YOU WERE REMOVED"
+	_recon_time.text = "You sat out three turns in a row."
+	_recon_button.visible = true
 
 func _on_session_expired() -> void:
 	_recon.visible = true

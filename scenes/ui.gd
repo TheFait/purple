@@ -73,6 +73,9 @@ var _start_pending: bool = false
 var _active_seat: int = 0
 var _away: Array = []                  # players who dropped: [[seat, hold seconds left, turn seconds left or -1], ...]
 var _away_banner: Label
+var _holder_label: Label               # who is up and how big the stack they hold is
+var _idle_seconds: int = -1            # >= 0 while the player on turn is being counted down to a skip
+var _idle_strike: int = 0
 var _away_tweens: Dictionary = {}      # seat dot -> its pulsing tween
 var _turn_announced: bool = false  # false until the opening turn has played
 var _lost_round: bool = false    # the table clear that follows a penalty is the chaotic one
@@ -127,6 +130,9 @@ func _ready() -> void:
 	presenter.stack_passed.connect(func(from: int, to: int, n: int): _enqueue("passed", [from, to, n]))
 	presenter.turn_skipped.connect(func(from: int, to: int): _enqueue("skipped", [from, to]))
 	presenter.away_changed.connect(_on_away_list)   # a live countdown, so it skips the animation queue
+	presenter.idle_warning.connect(_on_idle_warning)
+	presenter.player_kicked.connect(func(who: String): _enqueue("kicked", [who]))
+	_build_holder_label()
 	_build_away_banner()
 	presenter.phantoms_added.connect(func(cs: Array): _enqueue("phantoms", [cs]))
 	presenter.diamonds_forever.connect(func(): _enqueue("diamonds"))
@@ -475,6 +481,7 @@ func _play(kind: String, args: Array) -> void:
 		"left": await _on_left(args[0])
 		"passed": await _on_passed(args[0], args[1], args[2])
 		"skipped": await _on_skipped(args[0], args[1])
+		"kicked": await _on_kicked(args[0])
 		"phantoms": await _on_phantoms(args[0])
 		"diamonds": await _on_diamonds()
 		"pass": _on_pass_available(args[0])
@@ -580,6 +587,7 @@ func _on_pool(pool: int) -> void:
 	var grew := pool > _pool_shown
 	_pool_shown = pool
 	pool_label.text = str(pool)
+	_refresh_holder()
 	if grew:
 		_punch(pool_label, 1.35)
 
@@ -629,6 +637,7 @@ func _on_clear() -> void:
 func _on_seats(current: int) -> void:
 	_active_seat = current
 	_show_players(current)
+	_refresh_holder()
 
 func _on_left(who: String) -> void:
 	Sfx.play("lose", 0.8)
@@ -670,7 +679,12 @@ func _on_turn(seat: int) -> void:
 	_active_seat = seat
 	_show_players(seat)
 	_punch(_player_dots[seat], 1.3)
-	Sfx.play("turn")
+	_idle_seconds = -1   # a new turn starts a fresh idle clock
+	_refresh_holder()
+	if not presenter.is_hotseat() and seat == presenter.local_seat():
+		_your_turn_cue()
+	else:
+		Sfx.play("turn")
 	# A loss keeps the same seat, so after the opening turn a turn change is the stack being
 	# passed on (announced by its own "passed" event) or a player leaving: announce who is up.
 	if _turn_announced and not _pass_queued():
@@ -681,6 +695,15 @@ func _on_turn(seat: int) -> void:
 	_turn_announced = true
 
 ## True when the turn change being played is announced by a "passed" or "skipped" event behind it.
+## It is this device's player's turn: a distinct sound, a buzz, and (when the window is not in
+## front) a flashing taskbar icon. A phone that is fully asleep cannot do any of this: that
+## would need push notifications from a native plugin, which the game does not have.
+func _your_turn_cue() -> void:
+	Sfx.play("turn", 1.5)
+	Sfx.vibrate(250)
+	if not DisplayServer.window_is_focused():
+		DisplayServer.window_request_attention()
+
 func _pass_queued() -> bool:
 	for ev in _queue:
 		if ev.kind == "passed" or ev.kind == "skipped":
@@ -701,8 +724,8 @@ func _build_away_banner() -> void:
 	_away_banner = Label.new()
 	_away_banner.anchor_left = 0.05
 	_away_banner.anchor_right = 0.95
-	_away_banner.anchor_top = 0.078
-	_away_banner.anchor_bottom = 0.15
+	_away_banner.anchor_top = 0.112
+	_away_banner.anchor_bottom = 0.18
 	_away_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_away_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_away_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -713,6 +736,58 @@ func _build_away_banner() -> void:
 	_away_banner.add_theme_constant_override("outline_size", 6)
 	_away_banner.visible = false
 	root.add_child(_away_banner)
+
+# --- who is up ---------------------------------------------------------------
+
+func _build_holder_label() -> void:
+	_holder_label = Label.new()
+	_holder_label.anchor_left = 0.05
+	_holder_label.anchor_right = 0.95
+	_holder_label.anchor_top = 0.078
+	_holder_label.anchor_bottom = 0.112
+	_holder_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_holder_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_holder_label.add_theme_font_override("font", NeonTheme.FONT_BODY)
+	_holder_label.add_theme_font_size_override("font_size", 24)
+	_holder_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_holder_label.add_theme_constant_override("outline_size", 6)
+	_holder_label.visible = false
+	root.add_child(_holder_label)
+
+## "Ann is holding the stack of 3", "Your turn - holding a stack of 3", or the idle countdown.
+func _refresh_holder() -> void:
+	if _holder_label == null or _player_dots.is_empty():
+		return
+	var who: String = presenter.player_name(_active_seat)
+	var mine: bool = not presenter.is_hotseat() and _active_seat == presenter.local_seat()
+	var text := ""
+	var color: Color = SEAT_COLORS[_active_seat % SEAT_COLORS.size()]
+	if _idle_seconds >= 0:
+		var what := "REMOVED" if _idle_strike >= 2 else "skipped"
+		text = ("Make your move! You will be %s in %s" % [what, _clock(_idle_seconds)]) if mine \
+			else ("%s will be %s in %s" % [who, what, _clock(_idle_seconds)])
+		color = NeonTheme.RED
+	elif _pool_shown > 0:
+		var cards := "%d card%s" % [_pool_shown, "" if _pool_shown == 1 else "s"]
+		text = ("Your turn - holding a stack of %s" % cards) if mine else ("%s is holding the stack of %s" % [who, cards])
+	else:
+		text = "Your turn" if mine else ("%s to guess" % who)
+	_holder_label.text = text
+	_holder_label.add_theme_color_override("font_color", color)
+	_holder_label.visible = true
+
+func _on_idle_warning(seat: int, seconds_left: int, strike: int) -> void:
+	_idle_seconds = seconds_left
+	_idle_strike = strike
+	if seconds_left >= 0 and not presenter.is_hotseat() and seat == presenter.local_seat():
+		Sfx.vibrate(80)   # a nudge in your pocket: you are about to be skipped
+		Sfx.play("tick", 1.4)
+	_refresh_holder()
+
+## Someone sat idle through their third turn in a row.
+func _on_kicked(who: String) -> void:
+	Sfx.play("lose", 0.8)
+	await fx.slam_text("%s was removed\nfor inactivity" % who, NeonTheme.GOLD, 56, 1.0, NeonTheme.FONT_HEAD)
 
 func _on_away_list(list: Array) -> void:
 	_away = list
