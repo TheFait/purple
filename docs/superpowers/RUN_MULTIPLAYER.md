@@ -33,15 +33,19 @@ Connecting the GUI client to the server is the **first task of Iteration 2**.
 
 When a player disconnects mid-game, the server now reconciles the room automatically:
 
-- `Net._on_peer_disconnected` calls `GameEngine.reconcile_seats(new_count)`, which
-  clamps `seat_count` and `current_seat` so the turn rotation never lands on a vacated
-  seat index — preventing the room from deadlocking.
+- `Net._on_peer_disconnected` tells the room who left (`left` event, shown as
+  "<name> has disconnected") and calls `GameEngine.remove_seat(index)`, which closes the gap in
+  the turn order: the same player stays up if someone ahead of them left, and if the leaver held
+  the turn the stack passes to whoever takes their place (no drinks).
 - Each remaining peer receives a fresh `_client_seated` RPC so their cached `_my_seat`
   reflects the re-packed indices after the leaver's slot is removed.
 
-**Not yet implemented (Iteration 2):** full reconnection flow and late-joiner state sync
-(the stack, contributions and turn). What happens when the active player leaves for good is
-an open decision in the Iteration 2 plan. (The old `_awaiting_pass` edge case is gone: Ride
+**Dropped connections (Iteration 2C):** in a running game a disconnect no longer removes the
+player. Their seat is held for 60 seconds; if it is their turn the table waits 20 seconds and
+then skips them (the stack passes on, no drinks). Everyone sees a greyed pulsing dot and a
+countdown, and the dropped player's client keeps retrying and shows "Reconnecting..." until it
+gets the seat back (the table is replayed from a snapshot) or is told it was removed. Lobbies
+still remove a disconnected player immediately. (The old `_awaiting_pass` edge case is gone: Ride
 was removed, so passing never locks the game.)
 
 ## What is Iteration 2?

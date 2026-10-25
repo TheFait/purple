@@ -16,8 +16,11 @@ func _process(delta: float) -> bool:
 		var net = get_root().get_node("Net")
 		net.connected.connect(func(): net.join_room("auto", "Player"))
 		net.seated.connect(func(seat, _rn):
+			var first_time := _my_seat < 0
 			_my_seat = seat
-			print("CLIENT seated seat=%d" % seat))
+			print("CLIENT seated seat=%d" % seat)
+			if first_time:
+				net.request_sync())   # like the real UI: catch up with a table already in play
 		# A loss keeps the turn with the same player, so react to table events, not just turn changes.
 		net.pool_changed.connect(func(_p): _on_event(net))
 		net.turn_changed.connect(func(_s): _on_event(net))

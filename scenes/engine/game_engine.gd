@@ -17,6 +17,8 @@ signal pool_changed(pool: int)
 signal penalty_triggered(seat: int, amount: int)
 signal pass_available(is_available: bool)
 signal turn_changed(seat: int)
+signal stack_passed(from_seat: int, to_seat: int, count: int)
+signal turn_skipped(from_seat: int, to_seat: int)
 signal diamonds_forever()
 signal round_log(text: String)
 
@@ -114,10 +116,13 @@ func request_pass(seat: int) -> bool:
 	if seat != current_seat or not can_pass():
 		return false
 	round_log.emit("Seat %d passes with a stack of %d." % [current_seat + 1, drink_pool()])
+	var from_seat := current_seat
+	var count := drink_pool()
 	current_streak = 0
 	streak_changed.emit(current_streak)
 	pass_available.emit(false)
 	_advance_seat()
+	stack_passed.emit(from_seat, current_seat, count)
 	return true
 
 # --- internals ---
@@ -201,14 +206,33 @@ func _ensure_cards() -> void:
 	table_cards = kept
 	round_log.emit("Deck recycled mid-stack to keep play going.")
 
-func reconcile_seats(new_count: int) -> void:
-	## Called when a player disconnects mid-game. Clamps seat_count and
-	## current_seat so turn rotation never lands on a vacated index.
-	seat_count = max(1, new_count)
-	if current_seat >= seat_count:
+## The player whose turn it is did not come back in time: hand the turn (and the stack) to the
+## next player with no drinks, as a pass would. They start with no contributions.
+func skip_turn() -> void:
+	var from_seat := current_seat
+	round_log.emit("Seat %d is away — skipping to the next player." % (current_seat + 1))
+	current_streak = 0
+	streak_changed.emit(current_streak)
+	pass_available.emit(false)
+	_advance_seat()
+	turn_skipped.emit(from_seat, current_seat)
+
+## A player left for good. Close the gap in the turn order: if they were ahead of the
+## current player the current player just moves down a place (the same person is still up);
+## if they held the turn, the stack passes to whoever now sits in their place, with no drinks.
+func remove_seat(index: int) -> void:
+	if index < 0 or index >= seat_count:
+		return
+	seat_count = max(1, seat_count - 1)
+	if index < current_seat:
+		current_seat -= 1
+	elif index == current_seat:
+		current_streak = 0
+		streak_changed.emit(current_streak)
+		pass_available.emit(false)
 		current_seat = current_seat % seat_count
-	turn_changed.emit(current_seat)
-	round_log.emit("Player left — seat count now %d, seat %d's turn." % [seat_count, current_seat + 1])
+		turn_changed.emit(current_seat)
+		round_log.emit("The player holding the stack left — seat %d inherits it." % (current_seat + 1))
 
 func _advance_seat() -> void:
 	current_seat = (current_seat + 1) % seat_count

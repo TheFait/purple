@@ -4,22 +4,28 @@
 
 **Where we are:** Iteration 1 shipped the authoritative `GameEngine`, the `Net` autoload (move, pass and event RPCs), rooms with seats (public room, private room with a 5-character code, 12-seat cap) and a 2-client headless test. The UI is now fully presenter-agnostic (`act_move`, `act_pass`, `can_act`, `local_seat`, `legal_moves`, `seat_count`, plus every engine signal, including `phantoms_added` and `diamonds_forever`), and `Net` implements all of it. What is missing is everything between the title screen and a running online game, and robustness once people drop in and out.
 
-**Out of scope:** accounts and persistence, matchmaking by skill, chat, spectators beyond the late-join case below, web export (ENet is UDP, so no browser build in this iteration).
+**Out of scope:** accounts and persistence, matchmaking by skill, chat, spectators (a mid-game joiner is seated, not watching), web export (ENet is UDP, so no browser build in this iteration).
 
-## Open decisions (answer these before building 2B and 2C)
+## Decisions (locked)
 
-1. **Minimum players to start.** The rules doc says 4 or more. Proposal: require 2 so it can be tested and played in a pair, and show "best with 4+" in the lobby.
-2. **Joining a game already in progress.** Proposal: the joiner waits in the lobby as a spectator (sees the table, cannot act) and gets a seat when the next game starts. The alternative is to seat them at the end of the turn order immediately.
-3. **Where the server runs.** Proposal: a dedicated headless server you deploy (a small VPS, UDP 9000). A host-on-your-own-phone mode (listen server, needs NAT traversal) would be a later add-on.
-4. **Reconnect grace period.** Proposal: hold a dropped player's seat for 60 seconds. If it is their turn, the table waits for them for the first 20 seconds, then play skips to the next seat.
-5. **A player who leaves for good mid-game.** Proposal: their seat is removed. If they were holding the stack, it passes to the next player as a pass would (no drinks), and everyone is told.
-6. **Names.** Proposal: a name typed once on the join screen and kept on the device, shown in the lobby and the turn banner. Duplicate names get a number suffix.
+1. **Minimum players: 2.** The lobby shows "best with 4+". No upper change: the cap stays 12.
+2. **Joining a game in progress: seat at the end of the turn order.** The joiner gets a snapshot and takes the last seat immediately; turn order and the current player are unaffected, and their contribution count starts at 0. (There are no spectators.)
+3. **Server: dedicated headless server now; a same-Wi-Fi host mode later.** The later mode would use LAN broadcast discovery (no server needed) with the invite code finding the host; it is not part of this iteration. Player-hosted play over the internet is rejected (carrier NAT would need a relay server anyway).
+4. **Reconnect: hold a dropped seat for 60 seconds.** If it is their turn, the table waits 20 seconds, then play skips to the next seat. **The UI must show this wait clearly** (see "Waiting-for-player UI" below).
+5. **A player who leaves for good (quits, or the 60 seconds run out): their seat is removed and, if they held the stack, it passes to the next player like a pass, with no drinks.** Everyone sees who left.
+6. **Names: typed once and remembered on the device.** Duplicates get a number suffix ("Sam", "Sam 2"). Shown in the lobby and the turn banner.
 
 ## Design
 
 **Room states.** A room is `LOBBY` (players gather, the host can start) or `PLAYING` (a `GameEngine` exists and seats are fixed) and returns to `LOBBY` when the host ends the game. Today the engine is created on the first join and `seat_count` follows joins; that changes so nobody is seated into a live game by accident.
 
 **Event batching.** The server currently sends one RPC per engine signal, so the client cannot tell that Purple's two cards belong together, and a slow packet can split them. Instead the server collects all engine signals produced by one action (a move or a pass) into one ordered list and sends it as a single `_client_events` RPC. The client replays that list through the same signals the UI already listens to. This also removes any chance of events interleaving across actions, and the Purple pair reveal then works online without a special marker.
+
+**Waiting-for-player UI (decision 4).** When a connection drops, the server tells the room with a `_client_player_status(seat, state, seconds_left)` message (`connected`, `away`, `gone`) and keeps sending the remaining time once a second. The clients show:
+- **Everyone else:** the dropped player's dot in the players row turns grey and pulses; a banner under the row reads "Sam lost connection, holding the seat... 0:47". If it is their turn, a second line counts the 20-second turn wait ("waiting for Sam... 0:14"); when it expires a slam text announces "Skipping Sam" and play moves on.
+- **The dropped player, once back on the line:** a "Reconnecting..." overlay with the same countdown, then the snapshot restores the table. If the 60 seconds ran out they see "You were removed from the game" and a button back to the menu.
+- **When the seat is released for good:** a message "Sam left, the stack passes to Alex" (decision 5), the players row re-packs, and the dot is removed.
+- Countdowns come from the server's clock (seconds left), not a client timer, so every device agrees.
 
 **Snapshot for late joiners and reconnects.** One `_client_snapshot` RPC carries: the roster (names, seat order), whose turn it is, the stack as revealed cards (phantom flag included), contribution count, pass availability and room state. It never contains the deck or the discard (the existing hidden-information rule, and the integration test that greps client logs for deck contents stays).
 
@@ -38,34 +44,38 @@ start screen -> Play menu -> [Offline hotseat]            -> game (GameManager)
 ## Steps
 
 ### 2A. Wire the client to the server (smallest vertical slice)
-- [ ] Event batching in `Net`: collect engine signals per action, flush as one `_client_events` RPC; client replays them in order. Test: a Purple move arrives as one batch containing both cards.
-- [ ] `UI.bind(presenter)` instead of `get_parent()`; offline scene passes `GameManager`.
-- [ ] Online game scene that binds the UI to `Net`.
-- [ ] A temporary "Play online (auto room)" button on the start screen: connect to an address from a text field, `join_room("auto", name)`.
-- [ ] Verify: two real windows play a full game against a local server.
+- [x] Event batching in `Net`: collect engine signals per action, flush as one `_client_events` RPC; client replays them in order. Test: a Purple move arrives as one batch containing both cards.
+- [x] The UI picks its presenter (parent if it has `act_move`, else `Net`) instead of always using `get_parent()`.
+- [x] Online game scene (`scenes/online_game.tscn`) that binds the UI to `Net`; the UI asks the server for a snapshot (`request_sync`) when it appears.
+- [x] A temporary "Play online (auto room)" button on the start screen: connect to an address from a text field, `join_room("auto", name)`.
+- [x] Verified: a windowed client joined a real server, received the snapshot, sent a guess and got the card and penalty back. Still to do by hand: two real windows playing a full game.
 
 ### 2B. Lobby, invite codes, names
-- [ ] `Room.state`, `Room.host_peer`, names in the roster, host-only `rpc_start_game` / `rpc_end_game`, minimum-player check.
-- [ ] Engine created at start with the final seat count; no `seat_count` changes from joins.
-- [ ] RPCs: `rpc_create_room(name, is_public)` replies with room info and code; `rpc_join_room(code_or_id, name)`; `rpc_leave_room`; `_client_roster` broadcast on every change.
-- [ ] Join-code throttling and name sanitising.
-- [ ] Screens: Play menu, Host (shows the code and a copy/share button), Join (code entry), public room list, lobby (roster, Start for the host).
-- [ ] Tests: `test_room_manager.gd` for states, host rules, throttling; integration test with 3 clients through create, join by code, start.
+- [x] `Room.state`, `Room.host_peer`, names in the roster, host-only `rpc_start_game` / `rpc_end_game`, minimum-player check.
+- [x] Engine created at start with the final seat count; no `seat_count` changes from joins.
+- [x] Names: typed once and saved on the device (`user://`), duplicates get a number suffix.
+- [x] RPCs: `rpc_create_room(name, is_public)` replies with room info and code; `rpc_join_room(code_or_id, name)`; `rpc_leave_room`; `_client_lobby` roster broadcast on every change.
+- [x] Join-code throttling and name sanitising.
+- [x] Screens: Play menu, Host (shows the code and a copy/share button), Join (code entry), public room list, lobby (roster, Start for the host).
+- [x] Tests: `test_room_manager.gd` for states, host rules, throttling; integration test with 3 clients through create, join by code, start.
 
 ### 2C. Late join, reconnect, disconnect handling
-- [ ] `_client_snapshot` and the spectator case from decision 2.
-- [ ] Session tokens, seat holding, grace timers, turn skip, the forced-leave rule from decision 5.
-- [ ] Remove the obsolete `_awaiting_pass` backlog item (Ride no longer exists, so pass is never a locked state).
-- [ ] Tests: drop and reconnect a client mid-game and compare its snapshot with the server's table; late joiner sees the same stack; no deck contents in any client log.
+- [x] `_client_snapshot`; a mid-game joiner is seated at the end of the turn order (decision 2), so the engine must be able to grow `seat_count` without disturbing the current seat or stack.
+- [x] Session tokens (kept in memory while the app runs, not saved to disk, so an app restart cannot rejoin), seat holding (60 s), the 20 s turn wait and skip, and the leaves-for-good rule (decision 5).
+- [x] The waiting-for-player UI: `_client_player_status` message, greyed pulsing dot, countdown banner, "Reconnecting..." overlay, "removed" screen (see the section above).
+- [x] Remove the obsolete `_awaiting_pass` backlog item (Ride no longer exists, so pass is never a locked state).
+- [x] Tests: drop and reconnect a client mid-game and compare its snapshot with the server's table; a late joiner is seated last and sees the same stack; the 20 s skip and 60 s release fire on time (use a test clock, not real waiting); the status messages carry decreasing seconds (unit test). Not covered by the new scenarios: the "no deck contents in any client log" grep, which is still a TODO for the networked tests.
 
 ### 2D. Remote hosting
+- [ ] Port from a command-line argument (`-- --port 9000`) and a small startup log (address, port, room count, player count).
 - [ ] Server address and port in the join UI, with the last used address remembered.
-- [ ] Linux headless export preset and a short deploy guide (`docs/superpowers/RUN_MULTIPLAYER.md`): open UDP 9000, run as a service, restart on crash.
+- [ ] Run on a Linux VPS with the Godot binary and the project folder (no export needed); optionally a Linux export preset. A short deploy guide (`docs/superpowers/RUN_MULTIPLAYER.md`): open UDP 9000, run as a service, restart on crash.
 - [ ] Optional: a health print and basic logging (room count, player count).
 - [ ] Test the latency feel from a phone on mobile data; check that the pass and Purple animations hold with ~150 ms of lag.
 
 ### 2E. Polish
 - [ ] Turn banner and "you're up" use names; show who is holding the stack.
+- [ ] Later add-on, not this iteration: same-Wi-Fi hosting with LAN discovery (decision 3).
 - [ ] Connection lost / reconnecting overlay, kicked-for-inactivity message.
 - [ ] Sound and haptic cue on your turn when the app is in the background.
 - [ ] Update `CLAUDE.md` and `RUN_MULTIPLAYER.md` when each phase lands.
@@ -76,6 +86,6 @@ start screen -> Play menu -> [Offline hotseat]            -> game (GameManager)
 - Manual check each phase: two or three real windows, then a real phone against a remote server for 2D.
 
 ## Risks
-- **Phone backgrounding:** mobile OSes suspend the app and drop UDP; reconnect with the session token has to be reliable before this is fun in practice (hence 2C before 2D).
-- **UDP and NAT:** a dedicated public server avoids it; a host-on-device mode would need relay or hole punching and is deferred.
+- **Phone backgrounding:** mobile OSes suspend the app and drop UDP; reconnect with the session token has to be reliable before this is fun in practice (hence 2C before 2D). The 60-second hold and the visible countdown exist for exactly this.
+- **UDP and NAT:** a dedicated public server avoids it. A same-Wi-Fi host mode (later) works without a server; hosting over the internet from a phone is not planned.
 - **UI queue timing:** the batching in 2A is what makes the Purple pair and the in-order animations safe over the network, so it goes first.
