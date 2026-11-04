@@ -8,8 +8,11 @@ const GAME_ENGINE  := preload("res://scenes/engine/game_engine.gd")
 const DECK_ENGINE  := preload("res://scenes/engine/deck_engine.gd")
 const JOIN_THROTTLE := preload("res://server/join_throttle.gd")
 const SEAT_HOLD := preload("res://server/seat_hold.gd")
+const IDLE_WATCH := preload("res://server/idle_watch.gd")
 const RECONNECT_WINDOW_MSEC := 60_000   # how long a dropped client keeps trying to get its seat back
 const RECONNECT_RETRY_MSEC := 2_000
+const COLD_RESUME_MSEC := 15_000        # how long a freshly started app tries to rejoin its saved game
+const SESSION_TOUCH_MSEC := 10_000
 const MAX_ROOMS := 200
 const ROOM_NAME_MAX := 24
 const DB_PATH         := "res://assets/database/card_database.json"
@@ -42,10 +45,14 @@ signal seats_changed(count: int, current_seat: int)   # someone joined or left; 
 signal player_left(player_name: String)
 signal away_changed(list: Array)      # players who dropped: [[seat, hold seconds left, turn seconds left or -1], ...]
 signal turn_skipped(from_seat: int, to_seat: int)
+signal idle_warning(seat: int, seconds_left: int, strike: int)   # the player on turn is about to be skipped (-1 seconds: cleared)
+signal player_kicked(player_name: String)                       # someone was removed for sitting idle
+signal kicked()                                                 # ... and it was us
 signal stack_passed(from_seat: int, to_seat: int, count: int)
 signal table_restored(cards: Array)   # a snapshot of the stack, for a client that joined or reloaded late
 signal diamonds_forever()
 signal round_log(text: String)
+signal raw_batch(batch: Array)   # test hook: every event batch exactly as it arrived
 
 var _rooms: RoomManager      # server only
 var _auto_room: Room         # server only — the always-open public table
@@ -61,6 +68,16 @@ var hold_msec: int = SeatHold.HOLD_MSEC
 var turn_wait_msec: int = SeatHold.TURN_WAIT_MSEC
 var _seat_hold: SeatHold
 
+## Server only, set before start_server: how long a connected player may sit on their turn
+## (by number of idle turns so far) and how many seconds before that the table is warned.
+var idle_limits_msec: Array = IdleWatch.LIMITS_MSEC
+var idle_warn_seconds: int = IdleWatch.WARN_SECONDS
+var _idle_watch: IdleWatch
+
+## Server only, set before start_server (tests only): where to write the order of every new
+## game's deck, so a test client can prove it was never shown a card before it was drawn.
+var deck_dump_path: String = ""
+
 var room_info: Dictionary = {}   # client only — the last lobby info the server sent
 var session_token: String = ""   # client only — proves who we are when getting a seat back after a drop
 
@@ -70,6 +87,7 @@ var _reconnecting: bool = false
 var _reconnect_deadline_msec: int = 0
 var _next_attempt_msec: int = 0
 var _last_countdown: int = -1
+var _next_touch_msec: int = 0
 
 var _my_seat: int = -1           # client only
 var _current_turn_seat: int = 0  # client only (mirror of server turn)
@@ -90,6 +108,9 @@ func start_server(port: int) -> void:
 	_seat_hold = SEAT_HOLD.new()
 	_seat_hold.hold_msec = hold_msec
 	_seat_hold.turn_wait_msec = turn_wait_msec
+	_idle_watch = IDLE_WATCH.new()
+	_idle_watch.limits_msec = idle_limits_msec
+	_idle_watch.warn_seconds = idle_warn_seconds
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 ## Connect to a server. Returns false (and emits connect_failed) when the address is unusable.
@@ -127,6 +148,7 @@ func stop_client() -> void:
 	room_info = {}
 	session_token = ""
 	_reconnecting = false
+	OnlineSettings.clear_session()
 
 func _on_connected() -> void:
 	if _reconnecting:
@@ -179,6 +201,33 @@ func _process(_delta: float) -> void:
 		_hold_tick()
 	elif _reconnecting:
 		_reconnect_tick()
+	elif not session_token.is_empty() and Time.get_ticks_msec() >= _next_touch_msec:
+		# Still in the game: keep the saved session fresh so it is worth rejoining after a crash.
+		_next_touch_msec = Time.get_ticks_msec() + SESSION_TOUCH_MSEC
+		OnlineSettings.touch_session()
+
+## True while we are trying to get our seat back.
+func is_reconnecting() -> bool:
+	return _reconnecting
+
+## A freshly started app rejoins the game it was in when it closed (see OnlineSettings). The
+## reply is the usual resumed / session_expired, and the room announces itself on success.
+func resume_saved() -> bool:
+	var saved := OnlineSettings.load_session()
+	if saved.is_empty():
+		return false
+	var address := OnlineSettings.parse_address(String(saved.address), DEFAULT_PORT)
+	_server_ip = address[0]
+	_server_port = address[1]
+	session_token = String(saved.token)
+	room_info = {"state": "playing"}   # (so a resume is allowed; the server's answer sets the real state)
+	_reconnecting = true
+	var now := Time.get_ticks_msec()
+	_reconnect_deadline_msec = now + COLD_RESUME_MSEC
+	_next_attempt_msec = now
+	_last_countdown = -1
+	reconnecting.emit(COLD_RESUME_MSEC / 1000)
+	return true
 
 func _reconnect_tick() -> void:
 	var now := Time.get_ticks_msec()
@@ -378,6 +427,7 @@ func _client_public_rooms(list: Array) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _client_session(token: String) -> void:
 	session_token = token
+	OnlineSettings.save_session(token, "%s:%d" % [_server_ip, _server_port])
 
 @rpc("authority", "call_remote", "reliable")
 func _client_resumed() -> void:
@@ -396,9 +446,20 @@ func _client_lobby(info: Dictionary) -> void:
 		_reset_table_mirrors()
 	lobby_changed.emit(info)
 
+## The server removed us for sitting idle.
+@rpc("authority", "call_remote", "reliable")
+func _client_kicked() -> void:
+	room_info = {}
+	_my_seat = -1
+	session_token = ""
+	OnlineSettings.clear_session()
+	_reset_table_mirrors()
+	kicked.emit()
+
 @rpc("authority", "call_remote", "reliable")
 func _client_left_room() -> void:
 	session_token = ""
+	OnlineSettings.clear_session()
 	room_info = {}
 	_my_seat = -1
 	_reset_table_mirrors()
@@ -452,6 +513,12 @@ func _hold_tick() -> void:
 			if not is_instance_valid(room) or not room.has_meta("engine"):
 				break
 			_run_hold_action(room, engine, action)
+		if not is_instance_valid(room) or not room.has_meta("engine"):
+			continue
+		for action: Dictionary in _idle_watch.tick(room, engine.current_seat, now):
+			if not is_instance_valid(room) or not room.has_meta("engine"):
+				break
+			_run_idle_action(room, engine, action, now)
 
 func _run_hold_action(room: Room, engine: GameEngine, action: Dictionary) -> void:
 	match action.type:
@@ -467,6 +534,31 @@ func _run_hold_action(room: Room, engine: GameEngine, action: Dictionary) -> voi
 			var seat := room.seat_by_token(String(action.token))
 			if seat != null:
 				_release_seat(room, seat.seat_index)
+
+## A connected player on turn who does nothing: warn the table, skip them, and on the third
+## idle turn in a row remove them.
+func _run_idle_action(room: Room, engine: GameEngine, action: Dictionary, now: int) -> void:
+	match action.type:
+		"warn":
+			_queue_event(room, "idle", [action.seat, action.seconds, action.strike])
+			_flush_events(room)
+		"clear":
+			_queue_event(room, "idle", [-1, -1, 0])
+			_flush_events(room)
+		"skip":
+			var seat := room.seat_by_token(String(action.token))
+			if seat == null or seat.seat_index != engine.current_seat:
+				return
+			var peer := seat.peer_id
+			seat.idle_strikes += 1
+			_queue_event(room, "idle", [-1, -1, 0])
+			engine.skip_turn()
+			room.activity_msec = now
+			if action.remove and peer >= 0:
+				_remove_player(peer, "idle")
+				rpc_id(peer, "_client_kicked")
+			else:
+				_flush_events(room)
 
 ## The hold ran out: the seat is gone for good. Same cleanup as someone leaving mid-game.
 func _release_seat(room: Room, index: int) -> void:
@@ -517,9 +609,14 @@ func _end_game(room: Room) -> void:
 func _start_game(room: Room) -> void:
 	room.state = Room.State.PLAYING
 	room.turn_since_msec = _now()
+	room.activity_msec = _now()
 	room.set_meta("events", [])
 	var deck := DECK_ENGINE.new()
 	deck.load_from_json(DB_PATH, COLLECTION_PATH)
+	if not deck_dump_path.is_empty():
+		var dump := FileAccess.open(deck_dump_path, FileAccess.WRITE)
+		dump.store_string("\n".join(deck.names_in_draw_order()))
+		dump.close()
 	var engine: GameEngine = GAME_ENGINE.new()
 	add_child(engine)
 	room.set_meta("engine", engine)
@@ -533,6 +630,7 @@ func _start_game(room: Room) -> void:
 	engine.pass_available.connect(func(on: bool): _queue_event(room, "pass", [on]))
 	engine.turn_changed.connect(func(s: int):
 		room.turn_since_msec = _now()
+		room.activity_msec = _now()
 		_queue_event(room, "turn", [s]))
 	engine.turn_skipped.connect(func(f: int, to: int): _queue_event(room, "skipped", [f, to]))
 	engine.stack_passed.connect(func(f: int, to: int, n: int): _queue_event(room, "passed", [f, to, n]))
@@ -596,7 +694,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 
 ## A player is gone (disconnected or left on purpose): free their seat, tell the table who
 ## left, close the gap in the turn order, and pass the host role on if it was theirs.
-func _remove_player(peer_id: int) -> void:
+func _remove_player(peer_id: int, reason: String = "") -> void:
 	if _rooms == null:
 		return
 	_throttle.forget(peer_id)
@@ -619,7 +717,7 @@ func _remove_player(peer_id: int) -> void:
 	if room.state == Room.State.PLAYING and room.has_meta("engine"):
 		var engine: GameEngine = room.get_meta("engine")
 		# Tell the table who left first, then close the gap in the turn order.
-		_queue_event(room, "left", [leaver_name])
+		_queue_event(room, "kicked" if reason == "idle" else "left", [leaver_name])
 		engine.remove_seat(seat)
 		_queue_event(room, "seats", _seats_args(room, engine))
 		_flush_events(room)
@@ -646,9 +744,14 @@ func _route_action(sender: int, kind: String, move: int) -> void:
 		return
 	var engine: GameEngine = room.get_meta("engine")
 	var seat := room.seat_of(sender)  # the engine itself rejects wrong-seat calls
+	var accepted := false
 	match kind:
-		"move": engine.submit_move(seat, move)
-		"pass": engine.request_pass(seat)
+		"move": accepted = engine.submit_move(seat, move)
+		"pass": accepted = engine.request_pass(seat)
+	if accepted:
+		# Acting restarts the idle clock and clears any idle strikes.
+		room.activity_msec = _now()
+		room.seats[seat].idle_strikes = 0
 	_flush_events(room)
 
 # ---- server -> client: game events ----
@@ -656,6 +759,7 @@ func _route_action(sender: int, kind: String, move: int) -> void:
 ## One server action's worth of events, in order. Replayed through the presenter signals.
 @rpc("authority", "call_remote", "reliable")
 func _client_events(batch: Array) -> void:
+	raw_batch.emit(batch)
 	for event: Array in batch:
 		_apply_event(String(event[0]), event[1])
 
@@ -685,6 +789,8 @@ func _apply_event(kind: String, args: Array) -> void:
 		"left": player_left.emit(String(args[0]))
 		"away": away_changed.emit(args[0])
 		"skipped": turn_skipped.emit(int(args[0]), int(args[1]))
+		"idle": idle_warning.emit(int(args[0]), int(args[1]), int(args[2]))
+		"kicked": player_kicked.emit(String(args[0]))
 
 func _cards_from(dicts: Array) -> Array:
 	var cards: Array = []

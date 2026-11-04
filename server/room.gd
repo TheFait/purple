@@ -8,6 +8,7 @@ class Seat extends RefCounted:
 	var token: String = ""           # secret that lets this player take the seat back after a drop
 	var away_since_msec: int = -1    # when the connection dropped, or -1 while connected
 	var last_peer_id: int = -1       # the connection the seat had before it went away
+	var idle_strikes: int = 0        # turns in a row they let run out without acting
 	func _init(p_peer: int, p_name: String, p_index: int) -> void:
 		peer_id = p_peer
 		player_name = p_name
@@ -33,6 +34,7 @@ var host_peer: int = -1          # the player who can start and end the game
 var persistent: bool = false     # never freed when empty (the always-open public table)
 var auto_start: bool = false     # start the game as soon as the first player joins (tests)
 var turn_since_msec: int = 0     # when the current turn began (drives the wait for an away player)
+var activity_msec: int = 0       # when the player on turn started waiting: the last action or turn change
 
 func is_full() -> bool:
 	return seats.size() >= max_seats

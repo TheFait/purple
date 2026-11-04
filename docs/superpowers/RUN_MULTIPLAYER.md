@@ -45,7 +45,17 @@ player. Their seat is held for 60 seconds; if it is their turn the table waits 2
 then skips them (the stack passes on, no drinks). Everyone sees a greyed pulsing dot and a
 countdown, and the dropped player's client keeps retrying and shows "Reconnecting..." until it
 gets the seat back (the table is replayed from a snapshot) or is told it was removed. Lobbies
-still remove a disconnected player immediately. (The old `_awaiting_pass` edge case is gone: Ride
+still remove a disconnected player immediately.
+
+**Idle players:** a connected player who sits on their turn is skipped after 60 seconds, then
+30, then 15, and is removed after the third skip ("removed for inactivity"). Any action clears
+their strikes, and the last 10 seconds are shown to the whole table.
+
+**Restarting the app:** the game you were in is remembered for about two minutes; the online
+menu then offers REJOIN YOUR GAME.
+
+**What the server never sends:** the deck. `tests/net_client_hidden.gd` proves no client is
+shown a card before it is drawn (it fails against a server that leaks the next card). (The old `_awaiting_pass` edge case is gone: Ride
 was removed, so passing never locks the game.)
 
 ## What is Iteration 2?

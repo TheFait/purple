@@ -64,7 +64,7 @@ start screen -> Play menu -> [Offline hotseat]            -> game (GameManager)
 - [x] Session tokens (kept in memory while the app runs, not saved to disk, so an app restart cannot rejoin), seat holding (60 s), the 20 s turn wait and skip, and the leaves-for-good rule (decision 5).
 - [x] The waiting-for-player UI: `_client_player_status` message, greyed pulsing dot, countdown banner, "Reconnecting..." overlay, "removed" screen (see the section above).
 - [x] Remove the obsolete `_awaiting_pass` backlog item (Ride no longer exists, so pass is never a locked state).
-- [x] Tests: drop and reconnect a client mid-game and compare its snapshot with the server's table; a late joiner is seated last and sees the same stack; the 20 s skip and 60 s release fire on time (use a test clock, not real waiting); the status messages carry decreasing seconds (unit test). Not covered by the new scenarios: the "no deck contents in any client log" grep, which is still a TODO for the networked tests.
+- [x] Tests: drop and reconnect a client mid-game and compare its snapshot with the server's table; a late joiner is seated last and sees the same stack; the 20 s skip and 60 s release fire on time (use a test clock, not real waiting); the status messages carry decreasing seconds (unit test). The hidden-deck check is its own scenario (HIDDEN-DECK).
 
 ### 2D. Remote hosting
 - [ ] Port from a command-line argument (`-- --port 9000`) and a small startup log (address, port, room count, player count).
@@ -74,11 +74,12 @@ start screen -> Play menu -> [Offline hotseat]            -> game (GameManager)
 - [ ] Test the latency feel from a phone on mobile data; check that the pass and Purple animations hold with ~150 ms of lag.
 
 ### 2E. Polish
-- [ ] Turn banner and "you're up" use names; show who is holding the stack.
+- [x] Turn banner and "you're up" use names; show who is holding the stack.
 - [ ] Later add-on, not this iteration: same-Wi-Fi hosting with LAN discovery (decision 3).
-- [ ] Connection lost / reconnecting overlay, kicked-for-inactivity message.
-- [ ] Sound and haptic cue on your turn when the app is in the background.
-- [ ] Update `CLAUDE.md` and `RUN_MULTIPLAYER.md` when each phase lands.
+- [x] Connection lost / reconnecting overlay (2C), and the idle rule with its removal message (skip after 60 s, 30 s, 15 s, then remove).
+- [x] Sound, buzz and taskbar flash on your turn. A fully sleeping phone cannot be woken without a native push-notification plugin, so that part is not done.
+- [x] Update `CLAUDE.md` and `RUN_MULTIPLAYER.md` when each phase lands.
+- [x] Also done: the hidden-deck integration check, and saving the session so a restarted app can rejoin.
 
 ## Verification
 - `bash tests/run_net_integration.sh` stays the gate: it must keep passing, and grows scenarios per phase (3 clients, code join, reconnect, late join).
