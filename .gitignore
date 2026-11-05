@@ -16,3 +16,14 @@ mono_crash.*.json
 
 # Dev screenshots from tools/screenshot_run.gd
 .shots/
+
+# Personal photos for custom card decks (loaded at runtime, never committed)
+custom_deck/
+
+# Export output (iOS builds, Xcode projects)
+/build/
+
+# Local clutter (macOS, editor settings, MSW plugin logs)
+.DS_Store
+.vscode/
+.mswai/

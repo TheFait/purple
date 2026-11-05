@@ -1,6 +1,6 @@
 extends Node
 class_name GameEngine
-## Authoritative "Purple & Post" rules. Pure data (CardData) — no visuals.
+## Authoritative "Purple" rules. Pure data (CardData) — no visuals.
 ## Identical logic runs on the server, in offline mode, and in tests.
 ##
 ## The Stack (`table_cards`) holds correct guesses; the flip being judged is
@@ -128,6 +128,12 @@ func request_pass(seat: int) -> bool:
 # --- internals ---
 
 func _resolve(correct: bool, gain: int, flip: CardData, top: CardData, drop: CardData, reason: String) -> void:
+	# Negative Post: any single-flip guess other than Post whose flip ties the Top Card's
+	# rank loses with the drinks doubled, even when the guess itself was right (a Red call
+	# that flips a red card of the Top Card's rank still loses).
+	if flip != null and top != null and flip.rank == top.rank:
+		_lose(true, reason)
+		return
 	if correct:
 		_win(gain, reason)
 		if flip != null and top != null and drop != null and flip.suit == Globals.SUITS.DIAMONDS \
@@ -135,8 +141,7 @@ func _resolve(correct: bool, gain: int, flip: CardData, top: CardData, drop: Car
 			round_log.emit("Diamonds are Forever! Everyone drinks.")
 			diamonds_forever.emit()
 	else:
-		# A wrong guess whose flip ties the Top Card's rank is an unguessed Post.
-		_lose(flip != null and top != null and flip.rank == top.rank, reason)
+		_lose(false, reason)
 
 func _win(streak_gain: int, reason: String) -> void:
 	current_streak += streak_gain
@@ -150,7 +155,7 @@ func _win(streak_gain: int, reason: String) -> void:
 func _lose(post_double: bool, reason: String) -> void:
 	var amount: int = drink_pool() * (2 if post_double else 1)
 	if post_double:
-		round_log.emit("Post! The flip ties the Top Card — drinks double.")
+		round_log.emit("Negative Post! The flip ties the Top Card without a Post call — drinks double.")
 	round_log.emit("%s  ->  seat %d drinks %d." % [reason, current_seat + 1, amount])
 	penalty_triggered.emit(current_seat, amount)
 	_clear_table()
@@ -205,6 +210,12 @@ func _ensure_cards() -> void:
 	_deck.return_to_deck(recycled)
 	table_cards = kept
 	round_log.emit("Deck recycled mid-stack to keep play going.")
+
+# --- debug (offline dev tools; never reachable from a client) ---
+
+## Make the next draw a card `pred` accepts. Returns it, or null when none is left.
+func debug_rig_next(pred: Callable) -> CardData:
+	return _deck.debug_rig_next(pred)
 
 ## The player whose turn it is did not come back in time: hand the turn (and the stack) to the
 ## next player with no drinks, as a pass would. They start with no contributions.

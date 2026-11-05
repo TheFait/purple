@@ -19,9 +19,12 @@ const MOVE_BUTTONS := {
 # The guesses sit on the deck face as neon buttons. Rows are listed top to bottom and
 # centred; a row with no legal guess is skipped. The first state (a bare stack) only
 # allows Red / Black / Purple, so those grow into big buttons.
+## The dev button column (CARDS, PHOTO BACK and, in debug builds, TEST NEG POST and the
+## FAKEOUTs). Hidden for now; the F2 / F3 keys still switch the card look.
+const SHOW_DEV_BUTTONS := false
 const CHIP_GAP := 16.0
 const CHIP_ROW_GAP := 14.0
-const CHIP_LETTERS := {"RedButton": "R", "BlackButton": "B", "PurpleButton": "P", "PostButton": "MATCH"}
+const CHIP_LETTERS := {"RedButton": "R", "BlackButton": "B", "PurpleButton": "P", "PostButton": "POST"}
 const CHIP_ICONS := {
 	"HigherButton": GuessIcon.Kind.HIGHER, "LowerButton": GuessIcon.Kind.LOWER,
 	"InsideButton": GuessIcon.Kind.INSIDE, "OutsideButton": GuessIcon.Kind.OUTSIDE,
@@ -41,9 +44,10 @@ The next card is a heart or a diamond.",
 The next card is a spade or a club.",
 	"PurpleButton": "PURPLE
 Draw two cards: one red, one black. Counts for 2.",
-	"PostButton": "MATCH (POST)
+	"PostButton": "POST
 The next card matches the top card's rank.
-Hit it and the stack doubles.",
+Hit it and the stack doubles. Flip a match on
+any other guess and you drink double.",
 }
 const CHIP_RADIUS := 46
 const ESCORT_HEIGHT := 68.0   # the pressed button shrinks to about this tall while it rides with its card
@@ -51,6 +55,10 @@ const PLAYER_DOT := 20.0          # a waiting seat is a small filled dot; the ac
 const PLAYER_DOT_ACTIVE := 62.0
 const LONG_PRESS := 0.45      # seconds to hold a button before its tooltip appears (touch)
 const FAST_FORWARD_CARDS := 3   # when more card reveals than this are waiting, skip the drama
+const FAKEOUT_CHANCE := 0.125     # chance a flip (one card or Purple's pair) is a fakeout ...
+const FAKEOUT_CHANCE_BIG := 0.33  # ... and on a stack of FAKEOUT_BIG_STACK or more
+const FAKEOUT_BIG_STACK := 6
+const SHOW_HOLDER_LINE := false   # "Ann is holding the stack of 3" under the players row
 
 ## The offline GameManager when this UI sits under one; otherwise the online client (Net).
 @onready var presenter: Node = _pick_presenter()
@@ -78,8 +86,11 @@ var _idle_seconds: int = -1            # >= 0 while the player on turn is being 
 var _idle_strike: int = 0
 var _away_tweens: Dictionary = {}      # seat dot -> its pulsing tween
 var _turn_announced: bool = false  # false until the opening turn has played
+var _negative_post: bool = false  # the coming penalty is a Negative Post's doubled one
+var _force_fakeout: bool = false  # debug: the next single flip gets a fakeout
 var _lost_round: bool = false    # the table clear that follows a penalty is the chaotic one
 var _streak_shown: int = 0
+var _pass_on: bool = false          # the engine says a pass is allowed (shown when nothing is playing)
 var _pool_shown: int = 0
 var _backdrop_mat: ShaderMaterial
 var _move_buttons: Dictionary = {}   # button name -> Button
@@ -93,6 +104,8 @@ var _tip: PanelContainer
 var _tip_label: Label
 var _hold_id: int = 0                # bumped on every press / release so stale hold timers are ignored
 var _long_pressed: bool = false      # the press that just ended showed a tooltip, so it is not a guess
+var _look_toast: Label              # "Cards: Neon Noir" after a style switch
+var _look_tween: Tween
 
 func _pick_presenter() -> Node:
 	var parent := get_parent()
@@ -134,6 +147,7 @@ func _ready() -> void:
 	presenter.player_kicked.connect(func(who: String): _enqueue("kicked", [who]))
 	_build_holder_label()
 	_build_away_banner()
+	_build_look_buttons()
 	presenter.phantoms_added.connect(func(cs: Array): _enqueue("phantoms", [cs]))
 	presenter.diamonds_forever.connect(func(): _enqueue("diamonds"))
 	presenter.round_log.connect(func(t: String): _enqueue("log", [t]))
@@ -186,8 +200,7 @@ func _style_buttons() -> void:
 			var icon := GuessIcon.new()
 			icon.kind = CHIP_ICONS[button_name]
 			b.add_child(icon)
-		# Hover tooltip on PC; a press-and-hold tooltip on touch screens (see _bind_tooltip).
-		b.tooltip_text = CHIP_TIPS[button_name]
+		# Press and hold (touch) or hover (mouse) shows the guess's description (see _bind_tooltip).
 		_bind_tooltip(b, CHIP_TIPS[button_name])
 		_chip_reset(b)
 	NeonTheme.accent_button($Root/PassPanel/VBox/PassButtons/PassButton, NeonTheme.GREEN)
@@ -203,8 +216,10 @@ func _select(move: int) -> void:
 		return
 	if _busy() or not presenter.can_act() or not (move in presenter.legal_moves()):
 		return
+	_hide_tip()
 	Sfx.play("click")
 	Sfx.vibrate(15)
+	_hide_pass_panel()
 	_chosen = _move_buttons[MOVE_BUTTONS.find_key(move)]
 	presenter.act_move(move)
 	if not _busy():
@@ -217,6 +232,7 @@ func _on_pass_pressed() -> void:
 	presenter.act_pass()
 
 func _refresh_buttons() -> void:
+	table.browse_locked = _busy()   # the stack can be spread out only while nothing is playing
 	var locked: bool = _busy() or not presenter.can_act()
 	var legal: Array[int] = presenter.legal_moves()
 	for button_name: String in _move_buttons:
@@ -378,8 +394,9 @@ func _escort_finish(chip: Button, outcome: String) -> void:
 	tw.tween_callback(_chip_reset.bind(chip))
 
 # --- tooltips --------------------------------------------------------------
-# PC shows Godot's own hover tooltip (tooltip_text). Touch screens have no hover, so
-# pressing and holding a button shows the same text above it; that press is not a guess.
+# Pressing and holding a guess shows its description above it until the press is released;
+# that press is not a guess. With a mouse, hovering shows the same tip. One tip serves both
+# (Godot's own tooltip_text is not used), so touch and mouse look the same.
 
 func _build_tip() -> void:
 	_tip = PanelContainer.new()
@@ -396,25 +413,35 @@ func _build_tip() -> void:
 	root.add_child(_tip)
 
 func _bind_tooltip(b: Button, text: String) -> void:
-	if not DisplayServer.is_touchscreen_available():
-		return
 	b.button_down.connect(_on_chip_down.bind(b, text))
 	b.button_up.connect(_hide_tip)
+	b.mouse_entered.connect(_on_chip_hover.bind(b, text))
+	b.mouse_exited.connect(_hide_tip)
 
+## Held for LONG_PRESS: show the tip, and swallow the release so it does not count as a guess.
 func _on_chip_down(b: Button, text: String) -> void:
 	_long_pressed = false
 	_hold_id += 1
 	var id := _hold_id
 	await get_tree().create_timer(LONG_PRESS).timeout
-	if id == _hold_id:
+	if id == _hold_id and b.button_pressed:
 		_long_pressed = true
 		_show_tip(b, text)
+
+## A mouse resting on a guess shows the tip too. On a touch screen the emulated mouse enters
+## just before the press, and the press's own timer takes over (it bumps _hold_id).
+func _on_chip_hover(b: Button, text: String) -> void:
+	_hold_id += 1
+	var id := _hold_id
+	await get_tree().create_timer(LONG_PRESS + 0.2).timeout
+	if id == _hold_id and not b.button_pressed and b.mouse_filter != Control.MOUSE_FILTER_IGNORE and b.modulate.a > 0.5:
+		_show_tip(b, text, false)
 
 func _hide_tip() -> void:
 	_hold_id += 1
 	_tip.visible = false
 
-func _show_tip(b: Button, text: String) -> void:
+func _show_tip(b: Button, text: String, buzz: bool = true) -> void:
 	_tip_label.text = text
 	_tip.reset_size()
 	var sz := _tip.get_combined_minimum_size()
@@ -422,17 +449,106 @@ func _show_tip(b: Button, text: String) -> void:
 	var view_w := get_viewport().get_visible_rect().size.x
 	_tip.position = Vector2(clampf(rect.get_center().x - sz.x * 0.5, 8.0, view_w - sz.x - 8.0), rect.position.y - sz.y - 12.0)
 	_tip.visible = true
-	Sfx.vibrate(20)
+	if buzz:
+		Sfx.vibrate(20)
 
 ## F1 shows or hides the round log (the debug text along the bottom of the screen).
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F1:
-		turn_log.visible = not turn_log.visible
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	match event.keycode:
+		KEY_F1:
+			turn_log.visible = not turn_log.visible
+		KEY_F2:
+			_cycle_card_style()
+		KEY_F3:
+			_cycle_card_photos()
+
+# --- card look (dev switcher) --------------------------------------------------
+
+func _build_dev_button_column() -> void:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	col.position = Vector2(14, 662)
+	col.custom_minimum_size = Vector2(128, 0)
+	root.add_child(col)
+	var specs := [["CARDS", NeonTheme.CYAN, _cycle_card_style], ["PHOTO BACK", NeonTheme.GOLD, _cycle_card_photos]]
+	# Debug tool for the offline game (dev builds only): play a real Negative Post.
+	if OS.is_debug_build() and presenter.has_method("debug_negative_post"):
+		specs.append(["TEST NEG POST", NeonTheme.RED, _debug_negative_post])
+		specs.append(["FAKEOUT RED", NeonTheme.PURPLE, _debug_fakeout.bind(GameEngine.Move.RED)])
+		specs.append(["FAKEOUT PURPLE", NeonTheme.PURPLE, _debug_fakeout.bind(GameEngine.Move.PURPLE)])
+	for spec in specs:
+		var b := Button.new()
+		b.text = spec[0]
+		b.custom_minimum_size = Vector2(128, 40)
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 16)
+		NeonTheme.accent_button(b, spec[1], 12)
+		b.pressed.connect(spec[2])
+		col.add_child(b)
+
+## Small buttons under the stats panels: CARDS cycles the card style (F2), PHOTO BACK
+## turns the photo card back on and off (F3). Cards on the table restyle at once. Offline
+## dev builds add TEST NEG POST (GameManager.debug_negative_post). The whole column is
+## skipped while SHOW_DEV_BUTTONS is false; the toast is still built for F2 / F3.
+func _build_look_buttons() -> void:
+	if SHOW_DEV_BUTTONS:
+		_build_dev_button_column()
+	_look_toast = Label.new()
+	_look_toast.anchor_left = 0.05
+	_look_toast.anchor_right = 0.95
+	_look_toast.anchor_top = 0.56
+	_look_toast.anchor_bottom = 0.6
+	_look_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_look_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_font(_look_toast, NeonTheme.FONT_HEAD, 26, NeonTheme.TEXT)
+	_look_toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_look_toast.add_theme_constant_override("outline_size", 8)
+	_look_toast.modulate.a = 0.0
+	root.add_child(_look_toast)
+
+func _cycle_card_style() -> void:
+	Globals.cycle_card_style()
+	_show_look_toast("Cards: %s" % Globals.card_style_title())
+
+func _cycle_card_photos() -> void:
+	Globals.cycle_card_photos()
+	var msg := ("Card backs: %d photos, random" % Globals.back_photo_count()) if Globals.card_photos == "on" else "Card backs: classic"
+	if Globals.card_photos == "on" and Globals.back_photo_count() == 0:
+		msg += " (no photo in custom_deck/)"
+	_show_look_toast(msg)
+
+## Play a fakeout now: arm it and make `move` (Red or Purple, both always legal) for the
+## current player.
+func _debug_fakeout(move: int) -> void:
+	if _busy():
+		return
+	_force_fakeout = true
+	_show_look_toast("Debug: fakeout")
+	presenter.act_move(move)
+
+func _debug_negative_post() -> void:
+	if _busy():
+		return
+	_show_look_toast("Debug: rigging a Negative Post")
+	presenter.debug_negative_post()
+
+func _show_look_toast(text: String) -> void:
+	Sfx.play("click")
+	_look_toast.text = text
+	if _look_tween:
+		_look_tween.kill()
+	_look_toast.modulate.a = 1.0
+	_look_tween = create_tween()
+	_look_tween.tween_interval(1.4)
+	_look_tween.tween_property(_look_toast, "modulate:a", 0.0, 0.4)
 
 # --- event queue -----------------------------------------------------------
 
 func _enqueue(kind: String, args: Array = []) -> void:
 	_queue.append({"kind": kind, "args": args})
+	_hide_pass_panel()   # it comes back once everything has played (see _run_queue)
 	_refresh_buttons()
 	if not _running and not _start_pending:
 		# Wait for the end of the frame so a whole engine burst is queued first
@@ -454,6 +570,8 @@ func _run_queue() -> void:
 	_chosen = null
 	_escorting = null
 	_refresh_buttons()
+	if _pass_on and not pass_panel.visible:
+		_pop_pass_panel()
 
 ## True only when reveals have really piled up (several moves arrived at once). Counts
 ## waiting card reveals, not all events: one guess already queues a pool / streak / pass /
@@ -521,7 +639,7 @@ func _on_card_pair(first: CardData, second: CardData) -> void:
 	if not quick:
 		suspense = clampf(0.7 + 0.1 * _pool_shown + 0.12 * _streak_shown, 0.7, 1.6)
 		fx.set_vignette(0.6, 0.3, Color(0.12, 0.0, 0.2))
-	var cards: Array[Card] = await table.reveal_pair(first, second, suspense, quick)
+	var cards: Array[Card] = await table.reveal_pair(first, second, suspense, quick, not quick and _roll_fakeout())
 	fx.set_vignette(0.25, 0.35)
 	var outcome := "neutral" if quick else _peek_outcome()
 	var color := NeonTheme.CYAN
@@ -542,10 +660,33 @@ func _on_card_pair(first: CardData, second: CardData) -> void:
 			var punch := create_tween()
 			punch.tween_property(c, "scale", Vector2(0.92, 0.92), 0.08)
 			punch.tween_property(c, "scale", Vector2(Table.PAIR_SCALE, Table.PAIR_SCALE), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if is_hot(first, second):
+		await _on_hot()
 	if not quick:
 		await _wait(0.4)
 	if outcome != "lose":
 		await table.settle(0.15 if quick else 0.45)
+
+## House rule: a Purple that turns up a 6 and a 9 gets fire text "NICE", won or lost. Cosmetic only.
+static func is_hot(first: CardData, second: CardData) -> bool:
+	return (first.rank == 6 and second.rank == 9) or (first.rank == 9 and second.rank == 6)
+
+func _on_hot() -> void:
+	Sfx.play("streak", 0.75)
+	Sfx.vibrate(160)
+	fx.flash(Color(1.0, 0.45, 0.0), 0.35, 0.4)
+	fx.shake(6, 0.35)
+	await fx.fire_text("NICE", table.global_center() + Vector2(0.0, -20.0))
+
+## Fakeout: does the dealer peek and stare this player down before this flip? Rare on a
+## small stack, likelier once the stack is worth fearing. Rolled on each screen, and never
+## tied to the outcome (pure bluff).
+func _roll_fakeout() -> bool:
+	if _force_fakeout:
+		_force_fakeout = false
+		return true
+	var chance := FAKEOUT_CHANCE_BIG if _pool_shown >= FAKEOUT_BIG_STACK else FAKEOUT_CHANCE
+	return randf() < chance
 
 func _on_card(data: CardData) -> void:
 	var partner := _take_pair_partner()
@@ -558,7 +699,7 @@ func _on_card(data: CardData) -> void:
 	if not quick:
 		suspense = clampf(0.5 + 0.1 * _pool_shown + 0.12 * _streak_shown, 0.5, 1.5)
 		fx.set_vignette(0.6, 0.3, Color(0.12, 0.0, 0.2))
-	var card: Card = await table.reveal(data, suspense, quick)
+	var card: Card = await table.reveal(data, suspense, quick, not quick and _roll_fakeout())
 	fx.set_vignette(0.25, 0.35)
 	if quick:
 		card.glow(NeonTheme.CYAN)
@@ -567,6 +708,13 @@ func _on_card(data: CardData) -> void:
 		return
 	var outcome := _peek_outcome()
 	_escort_finish(chip, outcome)
+	if outcome == "win" and _post_hit_queued():
+		await _on_post_hit(card)
+		await table.settle()
+		return
+	if outcome == "lose" and _negative_post_queued():
+		await _on_negative_post(card)
+		return
 	match outcome:
 		"win":
 			card.glow(NeonTheme.GREEN)
@@ -622,8 +770,13 @@ func _on_penalty(seat: int, amount: int) -> void:
 	var who: String = presenter.player_name(seat)
 	# A long name gets a smaller slam so it still fits on one line.
 	var size := 92 if who.length() <= 8 else (72 if who.length() <= 12 else 56)
+	var line := "DRINK %d!" % amount
+	if _negative_post:
+		line = "DOUBLE!
+DRINK %d!" % amount
+	_negative_post = false
 	await fx.slam_text("%s,
-DRINK %d!" % [who, amount], NeonTheme.RED, size, 0.8, NeonTheme.FONT_HEAD)
+%s" % [who, line], NeonTheme.RED, size, 0.8, NeonTheme.FONT_HEAD)
 	pool_label.modulate = Color.WHITE
 	fx.set_vignette(0.25, 0.4)
 
@@ -647,11 +800,72 @@ func _on_left(who: String) -> void:
 func _on_restore(cards: Array) -> void:
 	table.restore(cards)
 
+## The flip just shown is a called Post that hit: its "phantoms" event (the doubling) is
+## queued behind it, before any other card or a clear.
+func _post_hit_queued() -> bool:
+	for ev in _queue:
+		match ev.kind:
+			"phantoms": return true
+			"card", "clear": return false
+	return false
+
+## The flip just shown ties the Top Card without a Post call (a Negative Post): the queued
+## penalty is double the stack the flip joined. Read from the events alone, so it works the
+## same offline and online (no client is told which guess was made).
+func _negative_post_queued() -> bool:
+	var pool := _pool_shown
+	for ev in _queue:
+		match ev.kind:
+			"pool": pool = ev.args[0]
+			"penalty": return pool >= 2 and ev.args[1] == pool * 2
+			"card", "clear": return false
+	return false
+
+## Negative Post: the matched Top card jumps out of the stack beside the flip, both burn
+## red, and the table is told before the (doubled) drinks land.
+func _on_negative_post(card: Card) -> void:
+	_negative_post = true
+	card.glow(NeonTheme.RED)
+	Sfx.play("lose", 1.3)
+	Sfx.vibrate(220)
+	fx.set_vignette(0.75, 0.25, Color(0.4, 0.0, 0.06))
+	var top: Card = await table.spotlight_match()
+	if top != null:
+		top.glow(NeonTheme.RED)
+		_punch(top, 1.15, top.scale.x)
+	_punch(card, 1.15, card.scale.x)
+	fx.flash(NeonTheme.RED, 0.3, 0.35)
+	fx.aberrate(0.02, 0.4)
+	fx.shake(12, 0.4)
+	_pulse_backdrop(1.0)
+	fx.slam_text("POSTED!", NeonTheme.RED, 120, 0.7, NeonTheme.FONT_HEAD)
+	await _wait(0.5)
+	# The matched pair burns up from the bottom and is gone before the drinks are called.
+	var pair: Array[Card] = [card]
+	if top != null:
+		pair.push_front(top)
+	Sfx.vibrate(300)
+	await table.burn_away(pair)
+
+## A Post hit gets its own moment on the flip itself, before the streak is counted.
+func _on_post_hit(card: Card) -> void:
+	card.glow(NeonTheme.CYAN)
+	Sfx.play("win", 1.25)
+	Sfx.vibrate(120)
+	_punch(card, 1.22, Table.REVEAL_ZOOM)
+	fx.flash(NeonTheme.CYAN, 0.4, 0.35)
+	fx.shake(8, 0.3)
+	_pulse_backdrop(0.8)
+	await fx.slam_text("POST!", NeonTheme.CYAN, 150, 0.45, NeonTheme.FONT_HEAD)
+
+## The doubling: ghost copies of every card burst out and settle under the stack, where
+## they stay (cyan) until it is cleared. The pool's own event then shows the new total.
 func _on_phantoms(cards: Array) -> void:
+	await _wait(0.45)   # let the streak's slam clear first
 	Sfx.play("streak")
 	Sfx.vibrate(120)
-	fx.flash(NeonTheme.CYAN, 0.35, 0.3)
-	await fx.slam_text("POSTED.", NeonTheme.CYAN, 128, 0.7, NeonTheme.FONT_HEAD)
+	fx.flash(NeonTheme.CYAN, 0.3, 0.3)
+	fx.slam_text("STACK x2!", NeonTheme.CYAN, 96, 0.6, NeonTheme.FONT_HEAD)
 	await table.add_phantoms(cards)
 	await _wait(0.2)
 
@@ -664,16 +878,24 @@ func _on_diamonds() -> void:
 	await fx.slam_text("DIAMONDS
 ARE FOREVER!", NeonTheme.CYAN, 84, 0.9, NeonTheme.FONT_HEAD)
 
+## The pass is shown only once the round has played out (_run_queue), never mid-guess.
 func _on_pass_available(on: bool) -> void:
-	pass_panel.visible = on
-	if on:
-		pass_panel.pivot_offset = pass_panel.size * 0.5
-		pass_panel.scale = Vector2(0.7, 0.7)
-		pass_panel.modulate.a = 0.0
-		var tw := create_tween().set_parallel(true)
-		tw.tween_property(pass_panel, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(pass_panel, "modulate:a", 1.0, 0.15)
+	_pass_on = on
+	if not on:
+		_hide_pass_panel()
 	_refresh_buttons()
+
+func _pop_pass_panel() -> void:
+	pass_panel.visible = true
+	pass_panel.pivot_offset = pass_panel.size * 0.5
+	pass_panel.scale = Vector2(0.7, 0.7)
+	pass_panel.modulate.a = 0.0
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(pass_panel, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(pass_panel, "modulate:a", 1.0, 0.15)
+
+func _hide_pass_panel() -> void:
+	pass_panel.visible = false
 
 func _on_turn(seat: int) -> void:
 	_active_seat = seat
@@ -774,7 +996,8 @@ func _refresh_holder() -> void:
 		text = "Your turn" if mine else ("%s to guess" % who)
 	_holder_label.text = text
 	_holder_label.add_theme_color_override("font_color", color)
-	_holder_label.visible = true
+	# The everyday status line is hidden; only the idle countdown (online) still shows.
+	_holder_label.visible = SHOW_HOLDER_LINE or _idle_seconds >= 0
 
 func _on_idle_warning(seat: int, seconds_left: int, strike: int) -> void:
 	_idle_seconds = seconds_left

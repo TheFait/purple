@@ -1,4 +1,4 @@
-# Running Purple & Post multiplayer (Iteration 1, local)
+# Running Purple multiplayer (Iteration 1, local)
 
 ## Automated integration test (recommended — the only verified path in iteration 1)
 
@@ -15,7 +15,7 @@ contents ever reach the client logs (server is authoritative).
 
 ```bash
 godot --headless --path . server/server.tscn
-# prints: SERVER: Purple & Post listening on 9000
+# prints: SERVER: Purple listening on 9000
 ```
 
 Transport: ENet (UDP), port 9000 (`Net.DEFAULT_PORT`).

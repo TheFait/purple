@@ -4,6 +4,8 @@ extends Node
 ## Builds its own post-process layer in code; the UI just calls the methods below.
 
 const POST_SHADER := preload("res://assets/shaders/post_fx.gdshader")
+const FIRE_SHADER := preload("res://assets/shaders/fire_text.gdshader")
+const FIRE_COLORS: PackedColorArray = [Color(1.0, 0.95, 0.6), Color(1.0, 0.75, 0.1), Color(1.0, 0.42, 0.0), Color(0.95, 0.12, 0.05)]
 
 var _post_mat: ShaderMaterial
 var _post_layer: CanvasLayer
@@ -134,5 +136,68 @@ func slam_text(text: String, color: Color, size: int = 96, hold: float = 0.7, fo
 	tw.tween_property(l, "modulate:a", 1.0, 0.1)
 	tw.chain().tween_interval(hold)
 	tw.chain().tween_property(l, "modulate:a", 0.0, 0.3)
+	await tw.finished
+	l.queue_free()
+
+## Fly text that burns: `text` in flame colours pops up at `at`, flickers, rises with a
+## trail of embers and fades. Awaitable (about 1.4 s).
+func fire_text(text: String, at: Vector2, size: int = 140) -> void:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_override("font", NeonTheme.FONT_HEAD)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", Color.WHITE)   # white marks the fill for the shader
+	l.add_theme_color_override("font_outline_color", Color(0.3, 0.02, 0.0))
+	l.add_theme_constant_override("outline_size", 16)
+	l.add_theme_color_override("font_shadow_color", Color(1.0, 0.35, 0.0, 0.85))
+	l.add_theme_constant_override("shadow_offset_x", 0)
+	l.add_theme_constant_override("shadow_offset_y", 0)
+	l.add_theme_constant_override("shadow_outline_size", 34)
+	var mat := ShaderMaterial.new()
+	mat.shader = FIRE_SHADER
+	l.material = mat
+	_host.add_child(l)
+	l.reset_size()
+	var box := l.get_combined_minimum_size()
+	l.size = box
+	mat.set_shader_parameter("height", box.y)
+	l.pivot_offset = box * 0.5
+	l.position = at - box * 0.5
+	l.scale = Vector2(0.3, 0.3)
+	l.modulate.a = 0.0
+	l.rotation = randf_range(-0.06, 0.06)
+
+	# Embers rising from the word for as long as it burns.
+	var embers := CPUParticles2D.new()
+	embers.amount = 70
+	embers.lifetime = 0.9
+	embers.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	embers.emission_rect_extents = Vector2(box.x * 0.42, box.y * 0.25)
+	embers.direction = Vector2(0, -1)
+	embers.spread = 22.0
+	embers.gravity = Vector2(0, -260)
+	embers.initial_velocity_min = 80.0
+	embers.initial_velocity_max = 260.0
+	embers.scale_amount_min = 3.0
+	embers.scale_amount_max = 9.0
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.3, 0.7, 1.0])
+	ramp.colors = PackedColorArray([FIRE_COLORS[0], FIRE_COLORS[1], FIRE_COLORS[2], Color(FIRE_COLORS[3], 0.0)])
+	embers.color_ramp = ramp
+	embers.position = box * 0.5
+	l.add_child(embers)
+	embers.show_behind_parent = true
+	confetti(at, 40, FIRE_COLORS, 0.7)
+
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(l, "scale", Vector2.ONE * 1.15, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "modulate:a", 1.0, 0.1)
+	tw.chain().tween_property(l, "scale", Vector2.ONE, 0.15)
+	tw.tween_property(l, "position:y", l.position.y - 150.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN).set_delay(0.15)
+	tw.tween_property(l, "modulate:a", 0.0, 0.45).set_delay(0.9)
+	tw.tween_callback(func(): embers.emitting = false).set_delay(0.8)
 	await tw.finished
 	l.queue_free()

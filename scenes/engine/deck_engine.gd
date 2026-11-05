@@ -54,6 +54,18 @@ func draw() -> CardData:
 		return null
 	return _deck.pop_back()
 
+## Debug only: move the first card in the deck (or, failing that, the discard) that
+## `pred` accepts to the top, so it is drawn next. Returns that card, or null when none matches.
+func debug_rig_next(pred: Callable) -> CardData:
+	for pile: Array[CardData] in [_deck, _discard]:
+		for i in range(pile.size() - 1, -1, -1):
+			if pred.call(pile[i]):
+				var card: CardData = pile[i]
+				pile.remove_at(i)
+				_deck.append(card)
+				return card
+	return null
+
 func discard(cards: Array) -> void:
 	for c in cards:
 		_discard.append(c)

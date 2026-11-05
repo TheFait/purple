@@ -1,4 +1,4 @@
-# Purple & Post — Online Play (Iteration 2) Plan
+# Purple — Online Play (Iteration 2) Plan
 
 **Goal:** Let any number of players (2 to 12) play one game from their own phones: one player hosts, the others join with an invite code (or pick a public room), and everyone sees the same table. The server stays authoritative. Offline hotseat keeps working.
 

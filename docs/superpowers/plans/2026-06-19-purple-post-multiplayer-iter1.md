@@ -1,8 +1,8 @@
-# Purple & Post — Authoritative Multiplayer (Iteration 1) Implementation Plan
+# Purple — Authoritative Multiplayer (Iteration 1) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Split the verified Purple & Post rules out of the visual layer into a pure `GameEngine`, run it on a dedicated authoritative ENet server with a room/seat model (≤12 seats), and prove a local 2-client slice plays turns correctly — while keeping a fun offline single-device mode.
+**Goal:** Split the verified Purple rules out of the visual layer into a pure `GameEngine`, run it on a dedicated authoritative ENet server with a room/seat model (≤12 seats), and prove a local 2-client slice plays turns correctly — while keeping a fun offline single-device mode.
 
 **Architecture:** A pure-data rules core (`CardData` + `DeckEngine` + `GameEngine`) runs identically on the server (authoritative), in offline mode, and in tests. Clients are thin views: they send move *intents* and render revealed `CardData`. Networking is one shared `Net` autoload (so RPC node paths match on both ends) that branches on `multiplayer.is_server()`.
 
@@ -373,7 +373,7 @@ Create `scenes/engine/game_engine.gd`:
 ```gdscript
 extends Node
 class_name GameEngine
-## Authoritative "Purple & Post" rules. Pure data (CardData) — no visuals.
+## Authoritative "Purple" rules. Pure data (CardData) — no visuals.
 ## Identical logic runs on the server, in offline mode, and in tests.
 
 enum Move { HIGHER, LOWER, RED, BLACK, PURPLE, POST }
@@ -1198,7 +1198,7 @@ extends Node
 func _ready() -> void:
 	var port := Net.DEFAULT_PORT
 	Net.start_server(port)
-	print("SERVER: Purple & Post listening on %d" % port)
+	print("SERVER: Purple listening on %d" % port)
 ```
 
 Create `server/server.tscn`:
@@ -1485,11 +1485,11 @@ Expected: `INTEGRATION: PASS` and `GAMEPLAY: PASS`; both client logs show distin
 
 Create `docs/superpowers/RUN_MULTIPLAYER.md`:
 ```markdown
-# Running Purple & Post multiplayer (Iteration 1, local)
+# Running Purple multiplayer (Iteration 1, local)
 
 ## Start the server (one terminal)
 godot --headless --path . server/server.tscn
-# prints: SERVER: Purple & Post listening on 9000
+# prints: SERVER: Purple listening on 9000
 
 ## Start each client (one terminal per player)
 godot --path . scenes/game.tscn

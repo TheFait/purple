@@ -147,6 +147,39 @@ func _test_losses_and_post_double() -> void:
 	e3.submit_move(0, GameEngine.Move.RED)
 	t.eq(g3.log.penalties, [[0, 4]], "wrong color on a rank tie doubles")
 
+	# Negative Post: a RIGHT colour guess that ties the Top Card's rank still loses, doubled.
+	var g4 := _make([[8, H], [8, D]])
+	var e4: GameEngine = g4.engine
+	e4.submit_move(0, GameEngine.Move.RED)
+	e4.submit_move(0, GameEngine.Move.RED)
+	t.eq(g4.log.penalties, [[0, 4]], "right colour on a rank tie is a Negative Post: (1+1)*2")
+	t.eq(e4.drink_pool(), 0, "Negative Post clears the stack")
+	t.eq(e4.current_streak, 0, "Negative Post wipes the contributions")
+	t.eq(e4.current_seat, 0, "same player guesses again after a Negative Post")
+
+	# Black likewise, on a bigger stack: 3 + flip = 4, doubled to 8.
+	var g5 := _make([[4, H], [9, S], [2, C], [2, S]])
+	var e5: GameEngine = g5.engine
+	e5.submit_move(0, GameEngine.Move.RED)
+	e5.submit_move(0, GameEngine.Move.HIGHER)
+	e5.submit_move(0, GameEngine.Move.LOWER)
+	e5.submit_move(0, GameEngine.Move.BLACK)
+	t.eq(g5.log.penalties, [[0, 8]], "right Black on a rank tie: (3+1)*2")
+
+	# A tie with the Drop Card only is not a Post; Red stays a win.
+	var g6 := _make([[8, H], [3, S], [8, D]])
+	var e6: GameEngine = g6.engine
+	e6.submit_move(0, GameEngine.Move.RED)
+	e6.submit_move(0, GameEngine.Move.LOWER)
+	e6.submit_move(0, GameEngine.Move.RED)
+	t.eq(g6.log.penalties, [], "matching the Drop Card is no Negative Post")
+	t.eq(e6.drink_pool(), 3, "Red on a Drop-rank card wins as usual")
+
+	# The opening flip has no Top Card to post on.
+	var g7 := _make([[8, H]])
+	g7.engine.submit_move(0, GameEngine.Move.RED)
+	t.eq(g7.log.penalties, [], "no Negative Post on an empty stack")
+
 func _test_post_call() -> void:
 	# Stack 8, 9; Post flips another 9: contributes 1, stack doubles with phantoms.
 	var g := _make([[8, H], [9, S], [9, H], [10, C]])
