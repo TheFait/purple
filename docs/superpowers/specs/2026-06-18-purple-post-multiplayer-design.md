@@ -1,4 +1,4 @@
-# Purple & Post — Authoritative Multiplayer (Public/Private Rooms)
+# Purple — Authoritative Multiplayer (Public/Private Rooms)
 
 **Date:** 2026-06-18
 **Status:** Design — awaiting review

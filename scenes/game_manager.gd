@@ -79,6 +79,30 @@ func current_streak() -> int:
 func drink_pool() -> int:
 	return _engine.drink_pool()
 
+# --- debug (offline dev builds; the UI shows buttons for these) ---
+
+## Play a real Negative Post: with a stack of at least two (rigged Red wins), rig a card
+## of the Top Card's rank and call that card's own colour, so the guess is right and still
+## loses double. Every step goes through the engine, so the view sees exactly the events an
+## unlucky player would.
+func debug_negative_post() -> void:
+	_debug_build_stack()
+	var top := _engine.active_card()
+	var next := _engine.debug_rig_next(func(c: CardData): return c.rank == top.rank)
+	if next == null:
+		round_log.emit("Debug: no card left that matches %s." % top)
+		return
+	# Call the rigged card's own colour, so the guess is right.
+	_engine.submit_move(_engine.current_seat, GameEngine.Move.RED if next.is_red() else GameEngine.Move.BLACK)
+
+## Rigged Red wins until the stack holds two cards (never of the Top Card's rank, which
+## would be a Negative Post).
+func _debug_build_stack() -> void:
+	while _engine.table_cards.size() < 2:
+		var top := _engine.active_card()
+		_engine.debug_rig_next(func(c: CardData): return c.is_red() and (top == null or c.rank != top.rank))
+		_engine.submit_move(_engine.current_seat, GameEngine.Move.RED)
+
 # --- rendering ---
 
 func _on_engine_pool_changed(p: int) -> void:

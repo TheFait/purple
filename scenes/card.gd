@@ -4,6 +4,8 @@ class_name Card
 ## on top glows to signal the result (see glow()).
 
 const CARD_SIZE := Vector2(200, 284)
+const CardFaceScript := preload("res://scenes/cards/card_face.gd")
+const FACE_RES := 2.0
 
 var rank: int
 var suit: Globals.SUITS
@@ -21,6 +23,10 @@ var _frame: Panel          # border, drawn above the faces
 var _frame_style: StyleBoxFlat
 var _glow: Panel           # opaque backing whose shadow is the outer glow
 var _glow_style: StyleBoxFlat
+var _face: Control         # CardFace, the procedural front (null on deck backs)
+var _back: Control         # CardFace in back mode: the photo card back
+## Which image of the card-back collection this card shows; picked at random on first use.
+var back_choice: int = -1
 
 func setup_card(p_nice_name:String, p_rank: int, p_suit: String, p_front_path: String, p_back_path: String, p_deck_type: String = "black"):
 	nice_name = p_nice_name
@@ -36,8 +42,64 @@ func _ready():
 	pivot_offset = CARD_SIZE * 0.5
 	set_front_face(image_path)
 	set_back_face(back_face_path)
+	_build_face()
+	_build_back()
 	_build_frame()
+	Globals.card_style_changed.connect(apply_style)
+	apply_style()
+
+## The procedural face (CardFace) sits above the PNG front and follows Globals.card_style.
+## It is drawn at FACE_RES times the card size and scaled down, so text stays sharp when the
+## card is zoomed (the stack rests at 2.55x). Deck backs (rank 0) have none.
+func _build_face() -> void:
+	if rank < 2:
+		return
+	_face = CardFaceScript.new()
+	_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_face.size = CARD_SIZE * FACE_RES
+	_face.scale = Vector2.ONE / FACE_RES
+	add_child(_face)
+	move_child(_face, front_face.get_index() + 1)
+
+## The photo back sits above the PNG back and replaces it while Globals.card_photos is "on".
+## Every card has one, the deck included. The photo is fixed to the card, so it turns with it
+## (the deck's cards lie sideways, and so does their photo).
+func _build_back() -> void:
+	_back = CardFaceScript.new()
+	_back.back = true
+	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_back.size = CARD_SIZE * FACE_RES
+	_back.scale = Vector2.ONE / FACE_RES
+	add_child(_back)
+	move_child(_back, back_face.get_index() + 1)
+
+## Restyle from the current settings (also called live when the player switches looks).
+func apply_style() -> void:
+	if _procedural():
+		_face.setup(rank, int(suit), Globals.card_style)
+	if _photo_back():
+		_back.style_id = Globals.card_style if Globals.card_style != "classic" else "neon_noir"
+		if back_choice < 0:
+			back_choice = Globals.random_back_index()
+		_back.photo = Globals.back_photo(back_choice)
 	update_display()
+
+## Show a particular back from the collection (a dealt card keeps the deck's top back).
+func set_back_choice(index: int) -> void:
+	back_choice = index
+	if is_node_ready():
+		apply_style()
+
+## Pick a new random back (the deck's top card, once the card above it is dealt). Repeats
+## are allowed, so with few photos the same one can come up twice in a row, like a real draw.
+func reroll_back() -> void:
+	set_back_choice(Globals.random_back_index())
+
+func _procedural() -> bool:
+	return _face != null and Globals.card_style != "classic"
+
+func _photo_back() -> bool:
+	return _back != null and Globals.card_photos == "on" and Globals.back_photo_count() > 0
 
 func _build_frame() -> void:
 	# The glow lives on a backing panel *behind* the faces: a StyleBoxFlat shadow is also
@@ -80,8 +142,12 @@ func _to_string():
 	return nice_name
 
 func update_display():
-	front_face.set_visible(not is_facedown)
-	back_face.set_visible(is_facedown)
+	front_face.set_visible(not is_facedown and not _procedural())
+	if _face != null:
+		_face.visible = not is_facedown and _procedural()
+	back_face.set_visible(is_facedown and not _photo_back())
+	if _back != null:
+		_back.visible = is_facedown and _photo_back()
 
 func set_back_face(path:String):
 	back_face_path = path
@@ -121,3 +187,16 @@ func glow(color: Color, duration: float = 0.2) -> void:
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(_frame_style, "border_color", Color(color, 1.0), duration)
 	tw.tween_property(_glow_style, "shadow_color", Color(color, 0.85), duration)
+
+## The frame's current border and halo colours, to put back later with set_glow_state().
+func glow_state() -> Array:
+	if _frame_style == null:
+		return []
+	return [_frame_style.border_color, _glow_style.shadow_color]
+
+func set_glow_state(state: Array, duration: float = 0.2) -> void:
+	if _frame_style == null or state.size() != 2:
+		return
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(_frame_style, "border_color", state[0], duration)
+	tw.tween_property(_glow_style, "shadow_color", state[1], duration)
